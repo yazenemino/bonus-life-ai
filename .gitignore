@@ -65,3 +65,12 @@ Fronend Desgins/
 .claude/
 !app/frontend/BonusLife-frontend/package.json
 !app/frontend/BonusLife-frontend/package-lock.json
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Test / dev files
+test_voice.mp3
+.hypothesis/
