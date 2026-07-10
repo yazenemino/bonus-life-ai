@@ -153,9 +153,11 @@ export default function BrainMRI({ language }) {
         {/* Header */}
         {!isViewMode && (
           <div className="text-center mb-8">
-            <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">Brain MRI Analysis</h1>
+            <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">
+              {isAr ? 'تحليل الرنين المغناطيسي للدماغ' : isTr ? 'Beyin MR Analizi' : 'Brain MRI Analysis'}
+            </h1>
             <p className="text-gray-500 text-sm max-w-lg mx-auto leading-relaxed">
-              Upload a brain MRI scan for AI-assisted tumor classification. Identifies glioma, meningioma, pituitary tumors, or healthy brain tissue.
+              {isAr ? 'قم برفع صورة رنين مغناطيسي للدماغ لتصنيف الأورام بمساعدة الذكاء الاصطناعي. يكتشف الورم الدبقي، السحائي، النخامي، أو الأنسجة السليمة.' : isTr ? 'Yapay zeka destekli tümör sınıflandırması için beyin MR taramasını yükleyin. Gliyom, menenjiyom, hipofiz tümörleri veya sağlıklı dokuyu tanımlar.' : 'Upload a brain MRI scan for AI-assisted tumor classification. Identifies glioma, meningioma, pituitary tumors, or healthy brain tissue.'}
             </p>
           </div>
         )}
@@ -167,9 +169,11 @@ export default function BrainMRI({ language }) {
               {Object.entries(TUMOR_COLORS).map(([label, c]) => (
                 <div key={label} className="rounded-xl px-4 py-3"
                   style={{ background: c.bg, border: `1px solid ${c.border}` }}>
-                  <p className="text-xs font-bold uppercase tracking-wider capitalize" style={{ color: c.text }}>{label}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider capitalize" style={{ color: c.text }}>
+                    {isAr ? (label === 'no tumor' ? 'سليم' : label === 'glioma' ? 'ورم دبقي' : label === 'meningioma' ? 'ورم سحائي' : 'ورم نخامي') : isTr ? (label === 'no tumor' ? 'Tümör Yok' : label === 'glioma' ? 'Gliyom' : label === 'meningioma' ? 'Menenjiyom' : 'Hipofiz') : label}
+                  </p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {label === 'no tumor' ? 'Healthy tissue' : label === 'glioma' ? 'Glial cell tumor' : label === 'meningioma' ? 'Membrane tumor' : 'Pituitary gland'}
+                    {isAr ? (label === 'no tumor' ? 'أنسجة سليمة' : label === 'glioma' ? 'ورم الخلايا الدبقية' : label === 'meningioma' ? 'ورم الأغشية' : 'ورم الغدة النخامية') : isTr ? (label === 'no tumor' ? 'Sağlıklı doku' : label === 'glioma' ? 'Glial hücre tümörü' : label === 'meningioma' ? 'Zar tümörü' : 'Hipofiz bezi') : (label === 'no tumor' ? 'Healthy tissue' : label === 'glioma' ? 'Glial cell tumor' : label === 'meningioma' ? 'Membrane tumor' : 'Pituitary gland')}
                   </p>
                 </div>
               ))}
@@ -181,7 +185,7 @@ export default function BrainMRI({ language }) {
                 style={{ background: 'linear-gradient(90deg, transparent, rgba(124,58,237,0.5), rgba(6,182,212,0.3), transparent)' }} />
               <div className="p-6">
                 <h2 className="text-white font-bold mb-4 flex items-center gap-2">
-                  <Upload className="w-4 h-4 text-violet-400" /> Upload MRI Scan
+                  <Upload className="w-4 h-4 text-violet-400" /> {isAr ? 'رفع صورة الرنين' : isTr ? 'MR Taramasını Yükle' : 'Upload MRI Scan'}
                 </h2>
                 <div
                   className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200"
@@ -208,8 +212,8 @@ export default function BrainMRI({ language }) {
                         style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)' }}>
                         <Brain className="w-7 h-7 text-violet-400" />
                       </div>
-                      <p className="text-white font-semibold mb-1">Drop MRI image here</p>
-                      <p className="text-gray-500 text-sm">JPG or PNG, up to 10 MB</p>
+                      <p className="text-white font-semibold mb-1">{isAr ? 'اسحب صورة الرنين إلى هنا' : isTr ? 'MR görüntüsünü buraya sürükleyin' : 'Drop MRI image here'}</p>
+                      <p className="text-gray-500 text-sm">{isAr ? 'JPG أو PNG، حتى 10 ميجابايت' : isTr ? 'JPG veya PNG, 10 MB\'a kadar' : 'JPG or PNG, up to 10 MB'}</p>
                     </>
                   )}
                   <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
@@ -227,7 +231,7 @@ export default function BrainMRI({ language }) {
 
             <div className="flex justify-center mb-8">
               <LiquidMetalButton onClick={submit} disabled={loading || !file} width={200}>
-                {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Activity className="w-4 h-4" /> Analyze MRI Scan</>}
+                {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> {isAr ? 'جاري التحليل...' : isTr ? 'Analiz ediliyor...' : 'Analyzing...'}</> : <><Activity className="w-4 h-4" /> {isAr ? 'تحليل الصورة' : isTr ? 'MR Analizi Yap' : 'Analyze MRI Scan'}</>}
               </LiquidMetalButton>
             </div>
           </>

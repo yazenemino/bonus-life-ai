@@ -86,12 +86,13 @@ def get_health_tip(language: str = "english") -> str:
     day_name = now.strftime("%A")
     theme_index = now.weekday() % len(TIP_THEMES)
     theme = TIP_THEMES[theme_index]
-    lang_instruction = "Respond in Turkish." if language == "turkish" else "Respond in English."
+    lang_instruction = "Respond in Turkish." if language == "turkish" else "Respond in Arabic." if language == "arabic" else "Respond in English."
+    disclaimer = "Bu tıbbi bir tavsiye değildir." if language == "turkish" else "هذه ليست نصيحة طبية." if language == "arabic" else "This is not medical advice."
     system = (
         "You are a diabetes prevention and wellness advisor. "
         "Give exactly one concrete action the user can do today. "
         "Use 2-3 short sentences in simple language. "
-        "End with a single disclaimer: 'This is not medical advice.' "
+        f"End with a single disclaimer: '{disclaimer}' "
         "Do not give medical advice or diagnoses."
     )
     prompt = (
@@ -110,7 +111,7 @@ def answer_scenario(
     """Scenario explorer: user's 'what if' + optional assessment context, one response."""
     if not (scenario or "").strip():
         return "Please enter a scenario (e.g. What if I lower my glucose by 20?)."
-    lang_instruction = "Respond in Turkish." if language == "turkish" else "Respond in English."
+    lang_instruction = "Respond in Turkish." if language == "turkish" else "Respond in Arabic." if language == "arabic" else "Respond in English."
     context = ""
     if assessment:
         risk = assessment.get("risk_level") or assessment.get("risk_level_display", "unknown")

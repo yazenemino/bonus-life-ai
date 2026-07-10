@@ -197,3 +197,5 @@ export default function WebGLHero({ language }) {
     </div>
   );
 }
+
+export { WebGLHero };
