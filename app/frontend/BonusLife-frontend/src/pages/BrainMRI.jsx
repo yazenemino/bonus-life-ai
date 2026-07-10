@@ -141,11 +141,11 @@ export default function BrainMRI({ language }) {
         {/* Back link - view mode */}
         {isViewMode && (
           <div className="mb-6">
-            <Link to="/dashboard?tab=imaging"
+            <Link to={ROUTES.DASHBOARD}
               className="inline-flex items-center gap-2 text-sm font-semibold transition-colors hover:text-violet-400"
               style={{ color: '#A78BFA' }}>
               <ChevronLeft className="w-5 h-5" />
-              {isAr ? 'العودة لتاريخ التصوير' : isTr ? 'Görüntüleme Geçmişine Dön' : 'Back to Imaging History'}
+              {isAr ? '← العودة للوحة التحكم' : isTr ? '← Panele Dön' : '← Back to Dashboard'}
             </Link>
           </div>
         )}
@@ -241,19 +241,19 @@ export default function BrainMRI({ language }) {
         {result && (
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-violet-400" /> Classification Results
+              <CheckCircle2 className="w-5 h-5 text-violet-400" /> {isAr ? 'نتائج التصنيف' : isTr ? 'Sınıflandırma Sonuçları' : 'Classification Results'}
             </h2>
 
             {/* Primary result */}
             {!result.model_available ? (
               <div className="rounded-2xl p-5" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                <p className="font-bold" style={{ color: '#FCD34D' }}>Model Unavailable</p>
+                <p className="font-bold" style={{ color: '#FCD34D' }}>{isAr ? 'النموذج غير متاح' : isTr ? 'Model Kullanılamıyor' : 'Model Unavailable'}</p>
                 <p className="text-gray-400 text-sm mt-1">{description}</p>
               </div>
             ) : (
               <div className="rounded-2xl p-6"
                 style={{ background: tumorColors.bg, border: `1px solid ${tumorColors.border}` }}>
-                <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">Classification</p>
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">{isAr ? 'التصنيف' : isTr ? 'Sınıflandırma' : 'Classification'}</p>
                 <p className="text-3xl font-black capitalize mb-2" style={{ color: tumorColors.text }}>{tumorClass}</p>
                 {confidencePct != null && (
                   <div className="flex items-center gap-3 mt-2">
@@ -270,7 +270,7 @@ export default function BrainMRI({ language }) {
             {/* All class probabilities */}
             {Object.keys(allProbs).length > 0 && (
               <div className="rounded-2xl p-5" style={cardStyle}>
-                <p className="text-white font-bold mb-4">All Class Probabilities</p>
+                <p className="text-white font-bold mb-4">{isAr ? 'احتمالات جميع الفئات' : isTr ? 'Tüm Sınıf Olasılıkları' : 'All Class Probabilities'}</p>
                 {Object.entries(allProbs).map(([label, val]) => (
                   <TumorProbBar key={label} label={label} value={val} active={label === tumorClass} />
                 ))}
@@ -289,8 +289,8 @@ export default function BrainMRI({ language }) {
                       <FileText className="w-5 h-5 text-violet-400" />
                     </div>
                     <div>
-                      <p className="text-white font-bold">Clinical Summary</p>
-                      <p className="text-gray-500 text-sm">Detailed AI analysis and next steps</p>
+                      <p className="text-white font-bold">{isAr ? 'الملخص السريري' : isTr ? 'Klinik Özet' : 'Clinical Summary'}</p>
+                      <p className="text-gray-500 text-sm">{isAr ? 'تحليل الذكاء الاصطناعي والخطوات التالية' : isTr ? 'Detaylı yapay zeka analizi ve sonraki adımlar' : 'Detailed AI analysis and next steps'}</p>
                     </div>
                   </div>
                   {summaryExpanded
@@ -309,7 +309,7 @@ export default function BrainMRI({ language }) {
                       className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all hover:-translate-y-0.5 disabled:opacity-50"
                       style={{ background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.3)', color: '#A78BFA' }}>
                       {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                      {isExporting ? 'Generating PDF...' : 'Download PDF Report'}
+                      {isExporting ? (isAr ? 'جاري إنشاء التقرير...' : isTr ? 'PDF Oluşturuluyor...' : 'Generating PDF...') : (isAr ? 'تحميل تقرير PDF' : isTr ? 'PDF Raporu İndir' : 'Download PDF Report')}
                     </button>
                   </div>
                 )}
@@ -319,7 +319,7 @@ export default function BrainMRI({ language }) {
             {/* Recommendations */}
             {(recommendations.immediate || (recommendations.lifestyle || []).length > 0) && (
               <div className="rounded-2xl p-5" style={cardStyle}>
-                <p className="text-white font-bold mb-3">Recommendations</p>
+                <p className="text-white font-bold mb-3">{isAr ? 'التوصيات' : isTr ? 'Öneriler' : 'Recommendations'}</p>
                 {recommendations.immediate && recommendations.immediate.trim() && (
                   <div className="rounded-xl px-4 py-3 mb-3"
                     style={isNoTumor

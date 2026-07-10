@@ -17,18 +17,18 @@ function getTodayDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function loadStoredTip() {
+function loadStoredTip(language) {
   try {
     const raw = localStorage.getItem(TIP_STORAGE_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    if (data.date !== getTodayDate()) return null;
+    if (data.date !== getTodayDate() || data.language !== language) return null;
     return data.tip || null;
   } catch { return null; }
 }
 
-function saveStoredTip(date, tip) {
-  try { localStorage.setItem(TIP_STORAGE_KEY, JSON.stringify({ date, tip })); } catch (_) {}
+function saveStoredTip(date, tip, language) {
+  try { localStorage.setItem(TIP_STORAGE_KEY, JSON.stringify({ date, tip, language })); } catch (_) {}
 }
 
 function loadScenarioHistory() {
@@ -111,13 +111,13 @@ const LocalAI = ({ language = 'english' }) => {
 
   const onGetTip = async () => {
     const today = getTodayDate();
-    const stored = loadStoredTip();
+    const stored = loadStoredTip(lang);
     if (stored) { setTip(stored); return; }
     setTipLoading(true); setTip('');
     try {
       const res = await localAIGetHealthTip(lang);
       const text = res.tip || res.detail || '';
-      setTip(text); saveStoredTip(today, text);
+      setTip(text); saveStoredTip(today, text, lang);
     } catch (e) { setTip(e.message || ''); } finally { setTipLoading(false); }
   };
 
@@ -126,7 +126,7 @@ const LocalAI = ({ language = 'english' }) => {
     try {
       const res = await localAIGetHealthTip(lang);
       const text = res.tip || res.detail || '';
-      setTip(text); saveStoredTip(getTodayDate(), text);
+      setTip(text); saveStoredTip(getTodayDate(), text, lang);
     } catch (e) { setTip(e.message || ''); } finally { setTipLoading(false); }
   };
 
