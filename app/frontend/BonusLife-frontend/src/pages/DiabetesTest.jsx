@@ -95,6 +95,8 @@ const DiabetesTest = ({ language = 'english' }) => {
     pedigree: 'دالة نسب السكري', pedigreeHint: 'درجة التاريخ العائلي (0.0 - 2.5)', pedigreePlaceholder: 'أدخل القيمة',
     requiredError: 'يرجى ملء جميع الحقول المطلوبة.',
     negativeError: 'يرجى إدخال رقم موجب.',
+    heightError: 'يجب أن يكون الطول 50 سم على الأقل.',
+    weightError: 'يجب أن يكون الوزن 1 كغ على الأقل.',
     execSummary: 'الملخص التنفيذي', probLabel: 'احتمالية الإصابة بالسكري من النوع الثاني',
     keyRiskFactors: 'عوامل الخطر الرئيسية', noRiskFactors: 'لا توجد عوامل خطر مهمة.',
     bmi: 'مؤشر كتلة الجسم', metabolicAge: 'العمر الأيضي', years: 'سنة', healthScore: 'درجة الصحة',
@@ -122,6 +124,8 @@ const DiabetesTest = ({ language = 'english' }) => {
     pedigree: 'Diyabet Aile Öyküsü', pedigreeHint: 'Aile öykü puanı (0,0 - 2,5)', pedigreePlaceholder: 'Değer girin',
     requiredError: 'Lütfen zorunlu alanları doldurun.',
     negativeError: 'Lütfen negatif olmayan bir sayı girin.',
+    heightError: 'Boy en az 50 cm olmalıdır.',
+    weightError: 'Kilo en az 1 kg olmalıdır.',
     execSummary: 'Özet', probLabel: 'Tip 2 diyabet geliştirme olasılığı',
     keyRiskFactors: 'Önemli Risk Faktörleri', noRiskFactors: 'Önemli risk faktörü yok.',
     bmi: 'VKİ', metabolicAge: 'Metabolik Yaş', years: 'yıl', healthScore: 'Sağlık Puanı',
@@ -149,6 +153,8 @@ const DiabetesTest = ({ language = 'english' }) => {
     pedigree: 'Diabetes Pedigree Function', pedigreeHint: 'Family history score (0.0 - 2.5)', pedigreePlaceholder: 'Enter value',
     requiredError: 'Please fill all required fields',
     negativeError: 'Please enter a positive number.',
+    heightError: 'Height must be at least 50 cm.',
+    weightError: 'Weight must be at least 1 kg.',
     execSummary: 'Executive Summary', probLabel: 'Probability of developing type 2 diabetes',
     keyRiskFactors: 'Key Risk Factors', noRiskFactors: 'No significant risk factors.',
     bmi: 'BMI', metabolicAge: 'Metabolic Age', years: 'years', healthScore: 'Health Score',
@@ -171,6 +177,8 @@ const DiabetesTest = ({ language = 'english' }) => {
         return v !== '' && !isNaN(parseFloat(v)) && parseFloat(v) < 0;
       });
       if (negativeFields.length) throw new Error(t.negativeError);
+      if (parseFloat(formData.height) < 50) throw new Error(t.heightError);
+      if (parseFloat(formData.weight) < 1) throw new Error(t.weightError);
 
       const payload = {
         pregnancies: parseInt(formData.pregnancies) || 0,
@@ -206,10 +214,12 @@ const DiabetesTest = ({ language = 'english' }) => {
   const isMod = risk.toLowerCase().includes('moderate');
 
   const isNegative = (v) => v !== '' && !isNaN(parseFloat(v)) && parseFloat(v) < 0;
+  const isBelowMin = (v, min) => v !== '' && !isNaN(parseFloat(v)) && parseFloat(v) < min;
   const negErr = t.negativeError;
   const canNext0 = formData.age && !isNegative(formData.age) && !isNegative(formData.pregnancies);
   const canNext1 = formData.glucose && formData.blood_pressure && formData.weight && formData.height
-    && !isNegative(formData.glucose) && !isNegative(formData.blood_pressure) && !isNegative(formData.weight) && !isNegative(formData.height)
+    && !isNegative(formData.glucose) && !isNegative(formData.blood_pressure)
+    && !isBelowMin(formData.height, 50) && !isBelowMin(formData.weight, 1)
     && !isNegative(formData.skin_thickness) && !isNegative(formData.insulin) && !isNegative(formData.diabetes_pedigree_function);
 
   return (
@@ -218,7 +228,7 @@ const DiabetesTest = ({ language = 'english' }) => {
       <button onClick={() => navigate(ROUTES.DASHBOARD)}
         className="flex items-center gap-2 mb-8 text-sm text-white/70 hover:text-white transition-colors group">
         <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-        Back to Dashboard
+        {isAr ? 'العودة للوحة التحكم' : isTr ? 'Panele Dön' : 'Back to Dashboard'}
       </button>
 
       {/* Top section */}
@@ -289,8 +299,8 @@ const DiabetesTest = ({ language = 'english' }) => {
                 <FormField label={t.bloodPressure} value={formData.blood_pressure} onChange={(e) => setFormData(prev => ({ ...prev, blood_pressure: e.target.value }))} required hint={t.bloodPressureHint} placeholder={t.bloodPressurePlaceholder} icon={Activity} error={isNegative(formData.blood_pressure) ? negErr : undefined} />
                 <FormField label={t.skinThickness} value={formData.skin_thickness} onChange={(e) => setFormData(prev => ({ ...prev, skin_thickness: e.target.value }))} hint={t.skinThicknessHint} placeholder={t.skinThicknessPlaceholder} error={isNegative(formData.skin_thickness) ? negErr : undefined} />
                 <FormField label={t.insulin} value={formData.insulin} onChange={(e) => setFormData(prev => ({ ...prev, insulin: e.target.value }))} hint={t.insulinHint} placeholder={t.insulinPlaceholder} error={isNegative(formData.insulin) ? negErr : undefined} />
-                <FormField label={t.weight} value={formData.weight} onChange={(e) => setFormData(prev => ({ ...prev, weight: e.target.value }))} required placeholder={t.weightPlaceholder} error={isNegative(formData.weight) ? negErr : undefined} />
-                <FormField label={t.height} value={formData.height} onChange={(e) => setFormData(prev => ({ ...prev, height: e.target.value }))} required placeholder={t.heightPlaceholder} error={isNegative(formData.height) ? negErr : undefined} />
+                <FormField label={t.weight} value={formData.weight} onChange={(e) => setFormData(prev => ({ ...prev, weight: e.target.value }))} required placeholder={t.weightPlaceholder} error={isNegative(formData.weight) ? negErr : isBelowMin(formData.weight, 1) ? t.weightError : undefined} />
+                <FormField label={t.height} value={formData.height} onChange={(e) => setFormData(prev => ({ ...prev, height: e.target.value }))} required placeholder={t.heightPlaceholder} error={isNegative(formData.height) ? negErr : isBelowMin(formData.height, 50) ? t.heightError : undefined} />
                 <div className="sm:col-span-2">
                   <FormField label={t.pedigree} value={formData.diabetes_pedigree_function} onChange={(e) => setFormData(prev => ({ ...prev, diabetes_pedigree_function: e.target.value }))} hint={t.pedigreeHint} placeholder={t.pedigreePlaceholder} error={isNegative(formData.diabetes_pedigree_function) ? negErr : undefined} />
                 </div>

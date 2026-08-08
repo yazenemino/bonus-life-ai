@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 try:
     import shap
     SHAP_AVAILABLE = True
-except ImportError:
+except (ImportError, AttributeError, Exception):
     SHAP_AVAILABLE = False
 
 from fastapi import FastAPI, HTTPException, Request

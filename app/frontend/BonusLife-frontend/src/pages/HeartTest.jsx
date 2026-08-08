@@ -169,7 +169,7 @@ const HeartTest = ({ language = 'english' }) => {
       <button onClick={() => navigate(ROUTES.DASHBOARD)}
         className="flex items-center gap-2 mb-8 text-sm text-white/70 hover:text-white transition-colors group">
         <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-        Back to Dashboard
+        {isAr ? 'العودة للوحة التحكم' : isTr ? 'Panele Dön' : 'Back to Dashboard'}
       </button>
 
       <div className="text-center mb-10 animate-fade-in-up">

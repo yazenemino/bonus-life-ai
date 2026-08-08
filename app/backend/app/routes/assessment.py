@@ -40,12 +40,28 @@ async def diabetes_assessment(
 
         height_m = request.height / 100
         bmi = request.weight / (height_m ** 2)
-        bmi_category = (
-            "Underweight" if bmi < 18.5
-            else "Normal" if bmi < 25
-            else "Overweight" if bmi < 30
-            else "Obese"
-        )
+        lang = (request.language or "english").lower()
+        if "arabic" in lang or lang == "ar":
+            bmi_category = (
+                "نقص الوزن" if bmi < 18.5
+                else "طبيعي" if bmi < 25
+                else "زيادة وزن" if bmi < 30
+                else "سمنة"
+            )
+        elif "turkish" in lang or lang == "tr":
+            bmi_category = (
+                "Zayıf" if bmi < 18.5
+                else "Normal" if bmi < 25
+                else "Kilolu" if bmi < 30
+                else "Obez"
+            )
+        else:
+            bmi_category = (
+                "Underweight" if bmi < 18.5
+                else "Normal" if bmi < 25
+                else "Overweight" if bmi < 30
+                else "Obese"
+            )
 
         features = {
             "Pregnancies": request.pregnancies,
@@ -93,7 +109,7 @@ async def diabetes_assessment(
         risk_analysis = {
             "risk_level": risk_label,
             "probability": round(probability, 3),
-            "key_factors": _identify_risk_factors(features, bmi),
+            "key_factors": _identify_risk_factors(features, bmi, lang),
             "feature_importances": feature_importances,
             **({"shap_explanation": shap_explanation} if shap_explanation else {}),
         }
@@ -103,10 +119,19 @@ async def diabetes_assessment(
             "metabolic_age": _calculate_metabolic_age(features),
             "health_score": _calculate_health_score(features),
         }
+        if "arabic" in lang or lang == "ar":
+            medical_followup = "استشر مقدم الرعاية الصحية لإجراء تقييم شامل"
+            monitoring_schedule = "يُنصح بإجراء فحوصات منتظمة"
+        elif "turkish" in lang or lang == "tr":
+            medical_followup = "Kapsamlı değerlendirme için sağlık uzmanına başvurun"
+            monitoring_schedule = "Düzenli kontroller önerilir"
+        else:
+            medical_followup = "Consult healthcare provider for comprehensive evaluation"
+            monitoring_schedule = "Regular check-ups recommended"
         recommendations = {
-            "lifestyle_changes": _generate_lifestyle_recommendations(risk_label, features),
-            "medical_followup": "Consult healthcare provider for comprehensive evaluation",
-            "monitoring_schedule": "Regular check-ups recommended",
+            "lifestyle_changes": _generate_lifestyle_recommendations(risk_label, features, lang),
+            "medical_followup": medical_followup,
+            "monitoring_schedule": monitoring_schedule,
         }
 
     except Exception as e:
@@ -156,23 +181,32 @@ async def diabetes_assessment(
 
 # -- helper functions ---------------------------------------------------------
 
-def _identify_risk_factors(features: Dict[str, Any], bmi: float) -> List[Dict[str, Any]]:
+def _identify_risk_factors(features: Dict[str, Any], bmi: float, lang: str = "english") -> List[Dict[str, Any]]:
+    is_ar = "arabic" in lang or lang == "ar"
+    is_tr = "turkish" in lang or lang == "tr"
+
+    def _t(en, ar, tr):
+        if is_ar: return ar
+        if is_tr: return tr
+        return en
+
     risk_factors = []
     if features["Glucose"] >= 126:
-        risk_factors.append({"factor": "Diabetes-level glucose", "severity": "high"})
+        risk_factors.append({"factor": _t("Diabetes-level glucose", "مستوى جلوكوز مرتفع جداً", "Diyabet düzeyinde glukoz"), "severity": _t("high", "عالي", "Yüksek")})
     elif features["Glucose"] >= 100:
-        risk_factors.append({"factor": "Prediabetes glucose levels", "severity": "moderate"})
+        risk_factors.append({"factor": _t("Prediabetes glucose levels", "مستوى جلوكوز في مرحلة ما قبل السكري", "Prediyabet glukoz düzeyi"), "severity": _t("moderate", "متوسط", "Orta")})
     if bmi >= 30:
-        risk_factors.append({"factor": "Clinical obesity", "severity": "high"})
+        risk_factors.append({"factor": _t("Clinical obesity", "سمنة مرضية", "Klinik obezite"), "severity": _t("high", "عالي", "Yüksek")})
     elif bmi >= 25:
-        risk_factors.append({"factor": "Overweight", "severity": "moderate"})
+        risk_factors.append({"factor": _t("Overweight", "زيادة في الوزن", "Kilolu"), "severity": _t("moderate", "متوسط", "Orta")})
     if features["BloodPressure"] >= 140:
-        risk_factors.append({"factor": "Stage 2 hypertension", "severity": "high"})
+        risk_factors.append({"factor": _t("Stage 2 hypertension", "ارتفاع ضغط الدم - المرحلة الثانية", "Evre 2 hipertansiyon"), "severity": _t("high", "عالي", "Yüksek")})
     elif features["BloodPressure"] >= 130:
-        risk_factors.append({"factor": "Stage 1 hypertension", "severity": "moderate"})
+        risk_factors.append({"factor": _t("Stage 1 hypertension", "ارتفاع ضغط الدم - المرحلة الأولى", "Evre 1 hipertansiyon"), "severity": _t("moderate", "متوسط", "Orta")})
     if features["Age"] >= 45:
-        risk_factors.append({"factor": "Age-related risk increase", "severity": "moderate"})
-    return risk_factors if risk_factors else [{"factor": "No significant risk factors identified", "severity": "low"}]
+        risk_factors.append({"factor": _t("Age-related risk increase", "ازدياد الخطر المرتبط بالعمر", "Yaşa bağlı risk artışı"), "severity": _t("moderate", "متوسط", "Orta")})
+    no_risk = _t("No significant risk factors identified", "لا توجد عوامل خطر مهمة", "Önemli risk faktörü tespit edilmedi")
+    return risk_factors if risk_factors else [{"factor": no_risk, "severity": _t("low", "منخفض", "Düşük")}]
 
 
 def _calculate_metabolic_age(features: Dict[str, Any]) -> int:
@@ -207,23 +241,31 @@ def _calculate_health_score(features: Dict[str, Any]) -> int:
     return min(100, score)
 
 
-def _generate_lifestyle_recommendations(risk_level: str, features: Dict[str, Any]) -> List[str]:
+def _generate_lifestyle_recommendations(risk_level: str, features: Dict[str, Any], lang: str = "english") -> List[str]:
+    is_ar = "arabic" in lang or lang == "ar"
+    is_tr = "turkish" in lang or lang == "tr"
+
+    def _t(en, ar, tr):
+        if is_ar: return ar
+        if is_tr: return tr
+        return en
+
     recs = []
     if "high" in risk_level.lower():
         recs.extend([
-            "Immediate consultation with healthcare provider",
-            "Comprehensive blood work and monitoring",
-            "Structured diet and exercise program",
+            _t("Immediate consultation with healthcare provider", "استشارة فورية مع مقدم الرعاية الصحية", "Sağlık uzmanıyla acil konsültasyon"),
+            _t("Comprehensive blood work and monitoring", "إجراء تحاليل دم شاملة ومراقبة دورية", "Kapsamlı kan tahlili ve izleme"),
+            _t("Structured diet and exercise program", "برنامج غذائي ورياضي منظم", "Yapılandırılmış diyet ve egzersiz programı"),
         ])
     else:
         recs.extend([
-            "Regular physical activity (30 mins daily)",
-            "Balanced diet with portion control",
-            "Regular health check-ups",
-            "Stress management and adequate sleep",
+            _t("Regular physical activity (30 mins daily)", "نشاط بدني منتظم (30 دقيقة يومياً)", "Düzenli fiziksel aktivite (günlük 30 dakika)"),
+            _t("Balanced diet with portion control", "نظام غذائي متوازن مع التحكم في الحصص", "Porsiyon kontrolüyle dengeli beslenme"),
+            _t("Regular health check-ups", "فحوصات صحية دورية منتظمة", "Düzenli sağlık kontrolleri"),
+            _t("Stress management and adequate sleep", "إدارة التوتر والنوم الكافي", "Stres yönetimi ve yeterli uyku"),
         ])
     if features.get("BMI", 0) > 25:
-        recs.append("Weight management program")
+        recs.append(_t("Weight management program", "برنامج إدارة الوزن", "Kilo yönetimi programı"))
     if features.get("Glucose", 0) > 100:
-        recs.append("Blood sugar monitoring")
+        recs.append(_t("Blood sugar monitoring", "مراقبة مستوى السكر في الدم", "Kan şekeri takibi"))
     return recs
