@@ -1,8 +1,11 @@
 // Bonus Life AI - Central Configuration
 // Authors: Muhammed Jalahej, Yazen Emino
 
-// API Base URL - in dev use '' so Vite proxy forwards /api to backend; otherwise env or 8000
-export const API_BASE_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? '' : 'http://localhost:8001');
+// API Base URL. Dev: '' so the Vite proxy forwards /api to the local backend.
+// Production: must come from VITE_API_URL (set in Vercel project settings) — pointed at the
+// Railway backend's public HTTPS URL. Never fall back to localhost here: that would silently
+// point a real visitor's browser at their own machine instead of surfacing the misconfiguration.
+export const API_BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
 /** Full URL for avatar image (handles relative paths from backend /avatars). */
 export function getAvatarUrl(avatarUrl) {

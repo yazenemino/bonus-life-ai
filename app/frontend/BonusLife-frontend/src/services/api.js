@@ -87,9 +87,12 @@ async function apiRequest(endpoint, options = {}) {
     }
     // "Failed to fetch" = network error (backend not running, wrong port, or CORS)
     if (error.message === 'Failed to fetch' || (error.name === 'TypeError' && error.message && error.message.includes('fetch'))) {
-      const backendHint = API_BASE_URL ? API_BASE_URL : 'http://localhost:8001 (via proxy from port 5173)';
-      const friendly = new Error('Cannot reach the server. Make sure the backend is running on port 8001.');
-      console.error(`API request failed for ${endpoint}:`, error);
+      const friendly = new Error(
+        import.meta.env.DEV
+          ? 'Cannot reach the server. Make sure the backend is running on port 8001.'
+          : 'Cannot reach the server. Please try again in a moment.'
+      );
+      console.error(`API request failed for ${endpoint} (base: ${API_BASE_URL || '(same-origin)'}):`, error);
       throw friendly;
     }
     console.error(`API request failed for ${endpoint}:`, error);

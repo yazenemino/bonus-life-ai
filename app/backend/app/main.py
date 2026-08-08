@@ -513,10 +513,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — only allow known origins; never use wildcard with credentials
-_frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+# CORS — only allow known origins; never use wildcard with credentials.
+# FRONTEND_URL accepts a comma-separated list so a custom domain and the default
+# Vercel subdomain (or apex + www) can be allowed at the same time during migration,
+# e.g. FRONTEND_URL=https://bonuslife.tech,https://www.bonuslife.tech,https://bonuslife.vercel.app
+_frontend_urls = [
+    u.strip().rstrip("/")
+    for u in os.getenv("FRONTEND_URL", "http://localhost:5173").split(",")
+    if u.strip()
+]
 _CORS_ORIGINS = list({
-    _frontend_url,
+    *_frontend_urls,
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175",

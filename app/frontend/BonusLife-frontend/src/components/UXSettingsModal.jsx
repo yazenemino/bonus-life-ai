@@ -7,10 +7,12 @@ import { API_BASE_URL } from '../config/constants';
 
 const TTS_VOICE_STORAGE_KEY = 'bonuslife_tts_voice_id';
 
+// Dev only: guess same host as page when VITE_API_URL is blank for the Vite proxy. In production,
+// VITE_API_URL is always set to the Railway backend's HTTPS URL — never guess a localhost/port there.
 function getVoiceApiBase() {
   if (API_BASE_URL && API_BASE_URL.startsWith('http')) return API_BASE_URL.replace(/\/$/, '');
-  if (typeof window !== 'undefined' && window.location?.hostname) return `http://${window.location.hostname}:8001`;
-  return 'http://127.0.0.1:8001';
+  if (import.meta.env.DEV && typeof window !== 'undefined' && window.location?.hostname) return `http://${window.location.hostname}:8001`;
+  return '';
 }
 
 /* ── Toggle switch ── */
