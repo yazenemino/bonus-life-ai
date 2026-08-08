@@ -516,7 +516,7 @@ app = FastAPI(
 # CORS — only allow known origins; never use wildcard with credentials.
 # FRONTEND_URL accepts a comma-separated list so a custom domain and the default
 # Vercel subdomain (or apex + www) can be allowed at the same time during migration,
-# e.g. FRONTEND_URL=https://bonuslife.tech,https://www.bonuslife.tech,https://bonus-life-ai.vercel.app
+# e.g. FRONTEND_URL=https://bonuslife.tech,https://www.bonuslife.tech,https://bonus-life-ai-cyan.vercel.app
 _frontend_urls = [
     u.strip().rstrip("/")
     for u in os.getenv("FRONTEND_URL", "http://localhost:5173").split(",")
@@ -524,9 +524,10 @@ _frontend_urls = [
 ]
 _CORS_ORIGINS = list({
     *_frontend_urls,
-    # Vercel production domain (project: bonus-life-ai) — baked in as a safe default so the
-    # deploy works even before FRONTEND_URL is set on Railway. Harmless to keep once it is.
-    "https://bonus-life-ai.vercel.app",
+    # Actual live Vercel production domain (project: bonus-life-ai) — baked in as a safe
+    # default so the deploy works even before FRONTEND_URL is set on Railway. Harmless to
+    # keep once it is. Vercel assigned a "-cyan" suffix rather than the bare project name.
+    "https://bonus-life-ai-cyan.vercel.app",
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175",
