@@ -789,7 +789,9 @@ async def create_checkout(
     if not price_id:
         raise HTTPException(status_code=400, detail="Invalid plan")
     import os
-    base = os.getenv("FRONTEND_URL", "http://localhost:5175").rstrip("/")
+    # Default matches the Vercel production domain (project: bonus-life-ai) so Stripe
+    # checkout/portal redirects work even if FRONTEND_URL isn't set on Railway.
+    base = os.getenv("FRONTEND_URL", "https://bonus-life-ai.vercel.app").rstrip("/")
     success_url = f"{base}/dashboard?subscription=success&session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{base}/pricing"
     customer_id = stripe_service.create_or_get_customer(
@@ -821,7 +823,9 @@ async def create_portal_session(
     if not user.stripe_customer_id:
         raise HTTPException(status_code=400, detail="No subscription to manage")
     import os
-    base = os.getenv("FRONTEND_URL", "http://localhost:5175").rstrip("/")
+    # Default matches the Vercel production domain (project: bonus-life-ai) so Stripe
+    # checkout/portal redirects work even if FRONTEND_URL isn't set on Railway.
+    base = os.getenv("FRONTEND_URL", "https://bonus-life-ai.vercel.app").rstrip("/")
     return_url = f"{base}/dashboard"
     url = stripe_service.create_portal_session(user.stripe_customer_id, return_url)
     if not url:

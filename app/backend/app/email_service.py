@@ -21,7 +21,9 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USER or "noreply@morelife.local")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+# Default matches the Vercel production domain (project: bonus-life-ai) so password-reset
+# links in emails work even if FRONTEND_URL isn't set on Railway. Same pattern as main.py's CORS.
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://bonus-life-ai.vercel.app")
 
 
 def _is_local_dev_mail():

@@ -20,10 +20,13 @@ from app.routes.auth import _user_to_response
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["webauthn"])
 
-# Relying Party config (from env; for local dev use localhost)
-WEBAUTHN_RP_ID = os.getenv("WEBAUTHN_RP_ID", "localhost")
+# Relying Party config (from env). Defaults match the Vercel production domain (project:
+# bonus-life-ai) so Passkey login works even if these aren't set on Railway — same pattern as
+# main.py's CORS. WebAuthn is strict about origin matching, so for LOCAL passkey testing set
+# WEBAUTHN_RP_ID=localhost and WEBAUTHN_ORIGIN=http://localhost:5173 in your local .env.
+WEBAUTHN_RP_ID = os.getenv("WEBAUTHN_RP_ID", "bonus-life-ai.vercel.app")
 WEBAUTHN_RP_NAME = os.getenv("WEBAUTHN_RP_NAME", "Bonus Life AI")
-WEBAUTHN_ORIGIN = os.getenv("WEBAUTHN_ORIGIN", "http://localhost:5173")
+WEBAUTHN_ORIGIN = os.getenv("WEBAUTHN_ORIGIN", "https://bonus-life-ai.vercel.app")
 
 
 def _b64url_decode(s: str) -> bytes:
@@ -38,7 +41,7 @@ def _get_origin(request=None):
     if WEBAUTHN_ORIGIN:
         return WEBAUTHN_ORIGIN
     # Could use request.base_url for dynamic origin
-    return "http://localhost:5173"
+    return "https://bonus-life-ai.vercel.app"
 
 
 # In-memory challenge store (use Redis in production for multi-instance)
