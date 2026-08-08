@@ -149,6 +149,12 @@ const ChatBot = ({ language = 'english' }) => {
     unavailable: isAr ? 'الذكاء الاصطناعي غير متاح. يرجى المحاولة مرة أخرى لاحقاً.' : isTr ? 'Yapay zeka şu an kullanılamıyor.' : 'AI unavailable. Please try again later.',
     requestTimeout: isAr ? 'انتهت مهلة الطلب' : isTr ? 'Zaman aşımı' : 'Request timeout',
     connectionError: isAr ? 'خطأ في الاتصال.' : isTr ? 'Bağlantı hatası.' : 'Connection error.',
+    send: isAr ? 'إرسال' : isTr ? 'Gönder' : 'Send',
+    sending: isAr ? 'جارِ الإرسال' : isTr ? 'Gönderiliyor' : 'Sending',
+    cmdNavigate: isAr ? '↑↓ تنقّل' : isTr ? '↑↓ gezin' : '↑↓ navigate',
+    cmdSelect: isAr ? '↵ اختر' : isTr ? '↵ seç' : '↵ select',
+    cmdClose: isAr ? 'Esc إغلاق' : isTr ? 'Esc kapat' : 'Esc close',
+    quickCommands: isAr ? 'أوامر سريعة' : isTr ? 'Hızlı Komutlar' : 'Quick Commands',
   };
 
   const commands = [
@@ -265,6 +271,11 @@ const ChatBot = ({ language = 'english' }) => {
 
   const genSuggestions = (lang, r) => {
     const l = (r || '').toLowerCase();
+    if (lang === 'arabic') {
+      if (l.includes('سكر الدم') || l.includes('الجلوكوز') || l.includes('الغلوكوز')) return ['ما هي النطاقات الطبيعية؟', 'أطعمة تساعد في التحكم بسكر الدم'];
+      if (l.includes('خطر') || l.includes('الوقاية')) return ['تغييرات نمط الحياة؟', 'علامات التحذير المبكرة'];
+      return ['اشرح أكثر', 'ما هي خيارات العلاج؟'];
+    }
     if (lang === 'turkish') {
       if (l.includes('kan şekeri') || l.includes('glukoz')) return ['Normal aralıklar?', 'Kan şekerini kontrol eden besinler'];
       if (l.includes('risk') || l.includes('önle')) return ['Yaşam tarzı değişiklikleri?', 'Erken belirtiler'];
@@ -430,7 +441,7 @@ const ChatBot = ({ language = 'english' }) => {
               >
                 <div className="p-2">
                   <p className="text-[10px] font-bold uppercase tracking-widest px-3 pt-2 pb-1.5" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                    Quick Commands
+                    {t.quickCommands}
                   </p>
                   {commands.map((cmd, i) => (
                     <motion.div
@@ -454,7 +465,7 @@ const ChatBot = ({ language = 'english' }) => {
                   ))}
                 </div>
                 <div className="px-4 py-2 flex gap-4 text-[10px]" style={{ color: 'rgba(255,255,255,0.2)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                  <span>↑↓ navigate</span><span>↵ select</span><span>Esc close</span>
+                  <span>{t.cmdNavigate}</span><span>{t.cmdSelect}</span><span>{t.cmdClose}</span>
                 </div>
               </motion.div>
             )}
@@ -578,8 +589,8 @@ const ChatBot = ({ language = 'english' }) => {
                 }}
               >
                 {loading
-                  ? <><LoaderIcon className="w-4 h-4 animate-spin" /><span>Sending</span></>
-                  : <><SendIcon className="w-4 h-4" /><span>Send</span></>
+                  ? <><LoaderIcon className="w-4 h-4 animate-spin" /><span>{t.sending}</span></>
+                  : <><SendIcon className="w-4 h-4" /><span>{t.send}</span></>
                 }
               </motion.button>
             </div>

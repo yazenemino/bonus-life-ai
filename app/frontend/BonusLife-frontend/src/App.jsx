@@ -15,9 +15,9 @@ import { ROUTES } from './config/constants';
 import { TourProvider } from './tour/TourContext';
 import TourOverlay from './tour/TourOverlay';
 
-function UXSettingsModalGate() {
+function UXSettingsModalGate({ language }) {
   const { uxModalOpen, setUxModalOpen } = useUXSettings();
-  return <UXSettingsModal isOpen={uxModalOpen} onClose={() => setUxModalOpen(false)} />;
+  return <UXSettingsModal isOpen={uxModalOpen} onClose={() => setUxModalOpen(false)} language={language} />;
 }
 
 /**
@@ -233,7 +233,7 @@ function App() {
             <TourOverlay language={language} />
           </TourProvider>
         </Router>
-        <UXSettingsModalGate />
+        <UXSettingsModalGate language={language} />
       </UXSettingsProvider>
     </ErrorBoundary>
   );

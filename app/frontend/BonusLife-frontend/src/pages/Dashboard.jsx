@@ -70,8 +70,23 @@ const toolGroups = [
 const DIET_GOAL_LABELS = {
   en: { diabetes_prevention: 'Diabetes Prevention', blood_sugar_control: 'Blood Sugar Control', weight_loss: 'Weight Loss', weight_gain: 'Weight Gain', maintenance: 'Maintenance', gestational_diabetes: 'Gestational Diabetes' },
   tr: { diabetes_prevention: 'Diyabet Önleme', blood_sugar_control: 'Kan Şekeri Kontrolü', weight_loss: 'Kilo Verme', weight_gain: 'Kilo Alma', maintenance: 'Koruma', gestational_diabetes: 'Gestasyonel Diyabet' },
+  ar: { diabetes_prevention: 'الوقاية من السكري', blood_sugar_control: 'التحكم في سكر الدم', weight_loss: 'إنقاص الوزن', weight_gain: 'زيادة الوزن', maintenance: 'المحافظة على الوزن', gestational_diabetes: 'سكري الحمل' },
 };
-const dietGoalDisplay = (goal, isTr) => (DIET_GOAL_LABELS[isAr ? 'en' : isTr ? 'tr' : 'en'][goal] || (goal || '').replace(/_/g, ' ')) || (isAr ? 'خطة النظام الغذائي' : isTr ? 'Diyet planı' : 'Diet plan');
+const dietGoalDisplay = (goal, isAr, isTr) => (DIET_GOAL_LABELS[isAr ? 'ar' : isTr ? 'tr' : 'en'][goal] || (goal || '').replace(/_/g, ' ')) || (isAr ? 'خطة النظام الغذائي' : isTr ? 'Diyet planı' : 'Diet plan');
+
+// Risk-level labels come back from the ML models as fixed English strings (e.g. "Low Risk").
+// Translate for display only — keep the raw value for color-class lookups (getRiskBadgeClasses etc).
+const RISK_LEVEL_LABELS = {
+  ar: { 'high risk': 'خطر مرتفع', 'moderate risk': 'خطر متوسط', 'low risk': 'خطر منخفض', 'very low risk': 'خطر منخفض جداً' },
+  tr: { 'high risk': 'Yüksek Risk', 'moderate risk': 'Orta Risk', 'low risk': 'Düşük Risk', 'very low risk': 'Çok Düşük Risk' },
+};
+const riskLevelDisplay = (level, isAr, isTr) => (isAr || isTr) ? (RISK_LEVEL_LABELS[isAr ? 'ar' : 'tr'][(level || '').toLowerCase()] || level) : level;
+
+const CKD_PREDICTION_LABELS = {
+  ar: { 'ckd': 'قصور كلوي', 'no ckd': 'لا يوجد قصور كلوي' },
+  tr: { 'ckd': 'KBH Var', 'no ckd': 'KBH Yok' },
+};
+const ckdPredictionDisplay = (pred, isAr, isTr) => (isAr || isTr) ? (CKD_PREDICTION_LABELS[isAr ? 'ar' : 'tr'][(pred || '').toLowerCase()] || pred) : pred;
 
 // Consistent time format: "8:51 PM" (no leading zero, uppercase AM/PM)
 const formatTime = (dateStr) => {
@@ -576,7 +591,7 @@ export default function Dashboard({ language }) {
     if (q) {
       list = list.filter(d =>
         (d.goal || '').toLowerCase().includes(q) ||
-        (dietGoalDisplay(d.goal, isTr) || '').toLowerCase().includes(q) ||
+        (dietGoalDisplay(d.goal, isAr, isTr) || '').toLowerCase().includes(q) ||
         (d.overview || '').toLowerCase().includes(q)
       );
     }
@@ -726,17 +741,17 @@ export default function Dashboard({ language }) {
             <div className="flex items-center gap-5 flex-wrap">
               <div className="flex items-center gap-1.5">
                 <FileText className="w-3.5 h-3.5 text-white/30" />
-                <span className="text-xs text-white/45">{totalAssessmentsCount} {isTr ? 'değerlendirme' : totalAssessmentsCount === 1 ? 'assessment' : 'assessments'}</span>
+                <span className="text-xs text-white/45">{totalAssessmentsCount} {isAr ? 'تقييم' : isTr ? 'değerlendirme' : totalAssessmentsCount === 1 ? 'assessment' : 'assessments'}</span>
               </div>
               <div className="w-px h-3 bg-white/[0.08]" />
               <div className="flex items-center gap-1.5">
                 <ScanLine className="w-3.5 h-3.5 text-white/30" />
-                <span className="text-xs text-white/45">{combinedImagingAnalyses.length} {isTr ? 'görüntüleme' : combinedImagingAnalyses.length === 1 ? 'imaging scan' : 'imaging scans'}</span>
+                <span className="text-xs text-white/45">{combinedImagingAnalyses.length} {isAr ? 'فحص تصوير' : isTr ? 'görüntüleme' : combinedImagingAnalyses.length === 1 ? 'imaging scan' : 'imaging scans'}</span>
               </div>
               <div className="w-px h-3 bg-white/[0.08]" />
               <div className="flex items-center gap-1.5">
                 <UtensilsCrossed className="w-3.5 h-3.5 text-white/30" />
-                <span className="text-xs text-white/45">{dietPlans.length} {isTr ? 'diyet planı' : dietPlans.length === 1 ? 'diet plan' : 'diet plans'}</span>
+                <span className="text-xs text-white/45">{dietPlans.length} {isAr ? 'خطة غذائية' : isTr ? 'diyet planı' : dietPlans.length === 1 ? 'diet plan' : 'diet plans'}</span>
               </div>
             </div>
             {/* Right: Verify Report */}
@@ -873,22 +888,22 @@ export default function Dashboard({ language }) {
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border bg-white/[0.05] text-white/40 border-white/[0.08]">
                           {isCKD ? <Droplets className="w-3 h-3" /> : isHeart ? <Heart className="w-3 h-3" /> : <Activity className="w-3 h-3" />}
-                          {isTr ? (isCKD ? 'Böbrek (CKD)' : isHeart ? 'Kalp' : 'Diyabet') : (isCKD ? 'Kidney (CKD)' : isHeart ? 'Heart' : 'Diabetes')}
+                          {isAr ? (isCKD ? 'الكلى (CKD)' : isHeart ? 'القلب' : 'السكري') : isTr ? (isCKD ? 'Böbrek (CKD)' : isHeart ? 'Kalp' : 'Diyabet') : (isCKD ? 'Kidney (CKD)' : isHeart ? 'Heart' : 'Diabetes')}
                         </span>
                         {isCKD ? (
                           <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-medium border bg-white/[0.05] text-white/45 border-white/[0.08]">
-                            {latest.prediction} · {((latest.confidence || 0) * 100).toFixed(0)}%
+                            {ckdPredictionDisplay(latest.prediction, isAr, isTr)} · {((latest.confidence || 0) * 100).toFixed(0)}%
                           </span>
                         ) : (
                           <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-medium border bg-white/[0.05] text-white/45 border-white/[0.08]">
-                            {latest.risk_level} · {(latest.probability * 100).toFixed(0)}%
+                            {riskLevelDisplay(latest.risk_level, isAr, isTr)} · {(latest.probability * 100).toFixed(0)}%
                           </span>
                         )}
                       </div>
                       <div className="text-sm text-gray-400 line-clamp-2 max-w-md mt-2 [&_strong]:font-semibold [&_strong]:text-gray-200">
                         <ReactMarkdown components={{ p: ({ children }) => <span>{children}</span>, strong: ({ children }) => <strong>{children}</strong> }}>{latest.executive_summary || ''}</ReactMarkdown>
                       </div>
-                      {latest.created_at && <p className="text-xs text-gray-500 mt-1">{new Date(latest.created_at).toLocaleString()}</p>}
+                      {latest.created_at && <p className="text-xs text-gray-500 mt-1">{new Date(latest.created_at).toLocaleString(isAr ? 'ar-SA' : isTr ? 'tr-TR' : 'en-US')}</p>}
                     </div>
                     <div className="flex gap-2 shrink-0">
                       <LiquidMetalButton onClick={() => navigate(isCKD ? ROUTES.CKD_TEST : isHeart ? ROUTES.HEART_TEST : ROUTES.TEST)} width={170} height={38}>
@@ -966,7 +981,7 @@ export default function Dashboard({ language }) {
                       <div className="text-sm text-gray-400 line-clamp-2 max-w-md mt-2 [&_strong]:font-semibold [&_strong]:text-gray-200">
                         {latest.executive_summary ? latest.executive_summary.replace(/\*+/g, '') : '—'}
                       </div>
-                      {latest.created_at && <p className="text-xs text-gray-500 mt-1">{new Date(latest.created_at).toLocaleString()}</p>}
+                      {latest.created_at && <p className="text-xs text-gray-500 mt-1">{new Date(latest.created_at).toLocaleString(isAr ? 'ar-SA' : isTr ? 'tr-TR' : 'en-US')}</p>}
                     </div>
                     <div className="flex gap-2 shrink-0">
                       <LiquidMetalButton onClick={() => navigate(ROUTES.BRAIN_MRI)} width={155} height={38}>
@@ -1006,11 +1021,11 @@ export default function Dashboard({ language }) {
           {!loading && totalAssessmentsCount > 0 && (
             <div className="flex flex-wrap gap-2 mb-4">
               {[
-                { value: 'all', labelEn: 'All', labelTr: 'Tümü', labelAr: 'All', w: 72 },
-                { value: 'diabetes', labelEn: 'Diabetes', labelTr: 'Diyabet', labelAr: 'Diabetes', w: 110 },
-                { value: 'heart', labelEn: 'Heart', labelTr: 'Kalp', labelAr: 'Heart', w: 88 },
-                { value: 'ckd', labelEn: 'Kidney (CKD)', labelTr: 'Böbrek (CKD)', labelAr: 'Kidney (CKD)', w: 148 },
-              ].map(({ value, labelEn, labelTr, w }) => {
+                { value: 'all', labelEn: 'All', labelTr: 'Tümü', labelAr: 'الكل', w: 72 },
+                { value: 'diabetes', labelEn: 'Diabetes', labelTr: 'Diyabet', labelAr: 'السكري', w: 110 },
+                { value: 'heart', labelEn: 'Heart', labelTr: 'Kalp', labelAr: 'القلب', w: 88 },
+                { value: 'ckd', labelEn: 'Kidney (CKD)', labelTr: 'Böbrek (CKD)', labelAr: 'الكلى (CKD)', w: 148 },
+              ].map(({ value, labelEn, labelTr, labelAr, w }) => {
                 const active = assessmentTypeFilter === value;
                 return (
                   <div key={value} className="relative" style={{ borderRadius: '100px', boxShadow: active ? '0 0 18px rgba(124,58,237,0.4)' : 'none' }}>
@@ -1031,7 +1046,7 @@ export default function Dashboard({ language }) {
                       width={w}
                       height={36}
                     >
-                      {isTr ? labelTr : labelEn}
+                      {isAr ? labelAr : isTr ? labelTr : labelEn}
                     </LiquidMetalButton>
                   </div>
                 );
@@ -1142,14 +1157,14 @@ export default function Dashboard({ language }) {
                       const ckdPos = isCKD && (a.prediction || '').toLowerCase() === 'ckd';
                       return (
                         <div key={a.id} className="space-y-2">
-                          <p className="text-xs text-gray-500">{a.created_at ? new Date(a.created_at).toLocaleDateString() : 'N/A'}</p>
+                          <p className="text-xs text-gray-500">{a.created_at ? new Date(a.created_at).toLocaleDateString(isAr ? 'ar-SA' : isTr ? 'tr-TR' : 'en-US') : 'N/A'}</p>
                           {isCKD ? (
                             <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-medium border ${ckdPos ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'bg-violet-500/20 text-violet-400 border-violet-500/30'}`}>
-                              {a.prediction} · {((a.confidence || 0) * 100).toFixed(1)}%
+                              {ckdPredictionDisplay(a.prediction, isAr, isTr)} · {((a.confidence || 0) * 100).toFixed(1)}%
                             </span>
                           ) : (
                             <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-medium border ${getRiskBadgeClasses(a.risk_level)}`}>
-                              {a.risk_level} · {(a.probability * 100).toFixed(1)}%
+                              {riskLevelDisplay(a.risk_level, isAr, isTr)} · {(a.probability * 100).toFixed(1)}%
                             </span>
                           )}
                           <div className="text-xs text-gray-400 line-clamp-3 mt-1 [&_strong]:font-semibold [&_strong]:text-gray-200">
@@ -1211,7 +1226,7 @@ export default function Dashboard({ language }) {
                       onKeyDown={!compareMode && viewRoute ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(viewRoute, { state: { assessment: a } }); } } : undefined}
                       role={!compareMode && viewRoute ? 'button' : undefined}
                       tabIndex={!compareMode && viewRoute ? 0 : undefined}
-                      aria-label={!compareMode ? (isTr ? (isCKD ? 'Böbrek değerlendirmesini görüntüle' : isHeart ? 'Kalp değerlendirmesini görüntüle' : 'Değerlendirmeyi görüntüle') : (isCKD ? 'View CKD assessment' : isHeart ? 'View heart assessment' : 'View assessment')) : undefined}
+                      aria-label={!compareMode ? (isAr ? (isCKD ? 'عرض تقييم الكلى' : isHeart ? 'عرض تقييم القلب' : 'عرض التقييم') : isTr ? (isCKD ? 'Böbrek değerlendirmesini görüntüle' : isHeart ? 'Kalp değerlendirmesini görüntüle' : 'Değerlendirmeyi görüntüle') : (isCKD ? 'View CKD assessment' : isHeart ? 'View heart assessment' : 'View assessment')) : undefined}
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -1228,15 +1243,15 @@ export default function Dashboard({ language }) {
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border ${isCKD ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' : isHeart ? getRiskBadgeClasses(a.risk_level) : 'bg-violet-500/10 text-violet-400 border-violet-500/30'}`}>
                                 {isCKD ? <Droplets className="w-3 h-3" /> : isHeart ? <Heart className="w-3 h-3" /> : <Activity className="w-3 h-3" />}
-                                {isTr ? (isCKD ? 'Böbrek (CKD)' : isHeart ? 'Kalp' : 'Diyabet') : (isCKD ? 'Kidney (CKD)' : isHeart ? 'Heart' : 'Diabetes')}
+                                {isAr ? (isCKD ? 'الكلى (CKD)' : isHeart ? 'القلب' : 'السكري') : isTr ? (isCKD ? 'Böbrek (CKD)' : isHeart ? 'Kalp' : 'Diyabet') : (isCKD ? 'Kidney (CKD)' : isHeart ? 'Heart' : 'Diabetes')}
                               </span>
                               {isCKD ? (
                                 <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium border ${ckdIsPositive ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'bg-violet-500/20 text-violet-400 border-violet-500/30'}`}>
-                                  {a.prediction} · {((a.confidence || 0) * 100).toFixed(0)}%
+                                  {ckdPredictionDisplay(a.prediction, isAr, isTr)} · {((a.confidence || 0) * 100).toFixed(0)}%
                                 </span>
                               ) : (
                                 <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium border ${getRiskBadgeClasses(a.risk_level)}`}>
-                                  {a.risk_level} · {(a.probability * 100).toFixed(0)}%
+                                  {riskLevelDisplay(a.risk_level, isAr, isTr)} · {(a.probability * 100).toFixed(0)}%
                                 </span>
                               )}
                             </div>
@@ -1246,7 +1261,7 @@ export default function Dashboard({ language }) {
                             {a.created_at && (
                               <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
-                                {new Date(a.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' })} · {new Date(a.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                                {new Date(a.created_at).toLocaleDateString(isAr ? 'ar-SA' : isTr ? 'tr-TR' : 'en-US', { dateStyle: 'medium' })} · {new Date(a.created_at).toLocaleTimeString(isAr ? 'ar-SA' : isTr ? 'tr-TR' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                               </p>
                             )}
                           </div>
@@ -1283,7 +1298,7 @@ export default function Dashboard({ language }) {
       {activeTab === 'imaging' && (
         <section>
           <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-            <h2 className="text-lg font-semibold text-white">{isAr ? 'تاريخ التصوير' : isTr ? 'G�r�nt�leme Ge�misi' : 'Imaging History'}</h2>
+            <h2 className="text-lg font-semibold text-white">{isAr ? 'تاريخ التصوير' : isTr ? 'Görüntüleme Geçmişi' : 'Imaging History'}</h2>
             <div className="flex flex-wrap gap-2 items-center">
               {brainMriAnalyses.length > 0 && (
                 <LiquidMetalButton onClick={() => { setImagingCompareMode(!imagingCompareMode); setImagingCompareIds([]); }} width={120} height={36}>
@@ -1298,8 +1313,8 @@ export default function Dashboard({ language }) {
           {!loading && brainMriAnalyses.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-4">
               {[
-                { id: 'all', labelEn: 'All', labelTr: 'Tümü', labelAr: 'All', w: 72 },
-                { id: 'mri', labelEn: 'Brain MRI', labelTr: 'Beyin MRI', labelAr: 'Brain MRI', icon: <Brain className="w-3.5 h-3.5" />, w: 120 },
+                { id: 'all', labelEn: 'All', labelTr: 'Tümü', labelAr: 'الكل', w: 72 },
+                { id: 'mri', labelEn: 'Brain MRI', labelTr: 'Beyin MRI', labelAr: 'الرنين المغناطيسي', icon: <Brain className="w-3.5 h-3.5" />, w: isAr ? 160 : 120 },
               ].map(f => {
                 const active = imagingTypeFilter === f.id;
                 return (
@@ -1308,7 +1323,7 @@ export default function Dashboard({ language }) {
                       <div style={{ position: 'absolute', inset: 0, borderRadius: '100px', background: 'rgba(124,58,237,0.28)', border: '1px solid rgba(167,139,250,0.6)', zIndex: 50, pointerEvents: 'none' }} />
                     )}
                     <LiquidMetalButton onClick={() => setImagingTypeFilter(f.id)} width={f.w} height={36}>
-                      {f.icon} {isTr ? f.labelTr : f.labelEn}
+                      {f.icon} {isAr ? f.labelAr : isTr ? f.labelTr : f.labelEn}
                     </LiquidMetalButton>
                   </div>
                 );
@@ -1348,7 +1363,7 @@ export default function Dashboard({ language }) {
                   )}
                   {(imagingDateFrom || imagingDateTo) && (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/15 text-blue-300 text-xs border border-blue-500/25">
-                      {isAr ? 'التاريخ' : isTr ? 'Tarih' : 'Date'}: {imagingDateFrom || '...'} � {imagingDateTo || '...'}
+                      {isAr ? 'التاريخ' : isTr ? 'Tarih' : 'Date'}: {imagingDateFrom || '...'} – {imagingDateTo || '...'}
                       <button type="button" onClick={() => { setImagingDateFrom(''); setImagingDateTo(''); }} className="hover:bg-blue-500/20 rounded p-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50"><X className="w-3 h-3" /></button>
                     </span>
                   )}
@@ -1442,7 +1457,7 @@ export default function Dashboard({ language }) {
                             <div className="text-sm text-gray-400 mt-1 line-clamp-2 max-w-md [&_strong]:font-semibold [&_strong]:text-gray-200">
                               {a.executive_summary ? a.executive_summary.replace(/\*+/g, '') : '—'}
                             </div>
-                            {a.created_at && <p className="text-xs text-gray-500 mt-1.5">{new Date(a.created_at).toLocaleString()}</p>}
+                            {a.created_at && <p className="text-xs text-gray-500 mt-1.5">{new Date(a.created_at).toLocaleString(isAr ? 'ar-SA' : isTr ? 'tr-TR' : 'en-US')}</p>}
                           </div>
                         </div>
                         {!imagingCompareMode && (
@@ -1580,12 +1595,12 @@ export default function Dashboard({ language }) {
                   <li key={d.id} className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] border-l-4 border-l-violet-500/50 hover:border-violet-500/30 transition">
                     <div className="flex justify-between items-start gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-white">{dietGoalDisplay(d.goal, isTr)}</p>
+                        <p className="font-medium text-white">{dietGoalDisplay(d.goal, isAr, isTr)}</p>
                         <p className="text-sm text-gray-400 line-clamp-2 mt-1">{d.overview}</p>
                         {d.created_at && (
                           <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {new Date(d.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' })} · {formatTime(d.created_at)}
+                            {new Date(d.created_at).toLocaleDateString(isAr ? 'ar-SA' : isTr ? 'tr-TR' : 'en-US', { dateStyle: 'medium' })} · {formatTime(d.created_at)}
                           </p>
                         )}
                       </div>
@@ -1674,7 +1689,7 @@ export default function Dashboard({ language }) {
                     </div>
                     <p className="text-gray-400 text-sm mt-2">
                       {user?.subscription_status === 'active' && user?.current_period_end
-                        ? (isAr ? `الفاتورة القادمة: ${new Date(user.current_period_end).toLocaleDateString()}` : isTr ? `Sonraki ödeme: ${new Date(user.current_period_end).toLocaleDateString()}` : `Next billing: ${new Date(user.current_period_end).toLocaleDateString()}`)
+                        ? (isAr ? `الفاتورة القادمة: ${new Date(user.current_period_end).toLocaleDateString('ar-SA')}` : isTr ? `Sonraki ödeme: ${new Date(user.current_period_end).toLocaleDateString('tr-TR')}` : `Next billing: ${new Date(user.current_period_end).toLocaleDateString('en-US')}`)
                         : (isAr ? 'جميع الأدوات مجانية. قم بالترقية إلى برو في أي وقت للوصول المبكر إلى الميزات الجديدة.' : isTr ? 'Tüm araçlar ücretsiz. İstediğiniz zaman Pro\'ya geçebilirsiniz.' : 'All tools are free. Upgrade to Pro anytime for early access to new features.')}
                     </p>
                     {(user?.subscription_tier === 'pro_monthly' || user?.subscription_tier === 'pro_yearly') ? (
@@ -2091,7 +2106,7 @@ function DashboardProfile({ language, user, refreshUser, setUserAvatar, handleEx
           <p className="text-gray-500 text-sm">{user?.email}</p>
           <span className={`inline-block mt-2 px-2 py-0.5 rounded text-xs font-medium
             ${user?.role === 'admin' ? 'bg-amber-500/20 text-amber-400' : 'bg-white/10 text-gray-400'}`}>
-            {user?.role || 'user'}
+            {user?.role === 'admin' ? (isAr ? 'مسؤول' : isTr ? 'Yönetici' : 'admin') : (isAr ? 'مستخدم' : isTr ? 'Kullanıcı' : (user?.role || 'user'))}
           </span>
         </div>
       </div>
@@ -2195,13 +2210,13 @@ function DashboardProfile({ language, user, refreshUser, setUserAvatar, handleEx
               {dietDropdownOpen && (
                 <div className="absolute z-20 mt-1 w-full rounded-lg border border-white/[0.08] bg-[#1a1a2e] shadow-xl py-1 max-h-56 overflow-y-auto">
                   {[
-                    { value: '', labelEn: 'Select...', labelTr: 'Seçin...' },
-                    { value: 'balanced', labelEn: 'Balanced', labelTr: 'Dengeli' },
-                    { value: 'vegetarian', labelEn: 'Vegetarian', labelTr: 'Vejetaryen' },
-                    { value: 'vegan', labelEn: 'Vegan', labelTr: 'Vegan' },
-                    { value: 'mediterranean', labelEn: 'Mediterranean', labelTr: 'Akdeniz' },
-                    { value: 'low_carb', labelEn: 'Low Carb', labelTr: 'Düşük Karbonhidrat' },
-                    { value: 'diabetic_friendly', labelEn: 'Diabetic Friendly', labelTr: 'Diyabet Dostu' },
+                    { value: '', labelEn: 'Select...', labelTr: 'Seçin...', labelAr: 'اختر...' },
+                    { value: 'balanced', labelEn: 'Balanced', labelTr: 'Dengeli', labelAr: 'متوازن' },
+                    { value: 'vegetarian', labelEn: 'Vegetarian', labelTr: 'Vejetaryen', labelAr: 'نباتي' },
+                    { value: 'vegan', labelEn: 'Vegan', labelTr: 'Vegan', labelAr: 'نباتي صرف (فيغان)' },
+                    { value: 'mediterranean', labelEn: 'Mediterranean', labelTr: 'Akdeniz', labelAr: 'البحر الأبيض المتوسط' },
+                    { value: 'low_carb', labelEn: 'Low Carb', labelTr: 'Düşük Karbonhidrat', labelAr: 'منخفض الكربوهيدرات' },
+                    { value: 'diabetic_friendly', labelEn: 'Diabetic Friendly', labelTr: 'Diyabet Dostu', labelAr: 'مناسب لمرضى السكري' },
                   ].map((opt) => (
                     <button
                       key={opt.value || 'empty'}
@@ -2209,7 +2224,7 @@ function DashboardProfile({ language, user, refreshUser, setUserAvatar, handleEx
                       onClick={() => { setDietPref(opt.value); setDietDropdownOpen(false); }}
                       className={`w-full px-4 py-2.5 text-left text-sm transition ${opt.value === dietPref ? 'bg-violet-500/20 text-violet-400' : 'text-gray-200 hover:bg-white/[0.06] hover:text-white'}`}
                     >
-                      {isTr ? opt.labelTr : opt.labelEn}
+                      {isAr ? opt.labelAr : isTr ? opt.labelTr : opt.labelEn}
                     </button>
                   ))}
                 </div>

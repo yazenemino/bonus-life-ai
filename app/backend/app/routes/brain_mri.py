@@ -147,7 +147,7 @@ async def brain_mri_analysis(
             "tumor_description": description,
         }
 
-        recommendations = _build_recommendations(tumor_class, severity)
+        recommendations = _build_recommendations(tumor_class, severity, language)
 
         return {
             "id": db_id,
@@ -173,30 +173,39 @@ async def brain_mri_analysis(
         )
 
 
-def _build_recommendations(tumor_class: str, severity: str):
+def _build_recommendations(tumor_class: str, severity: str, lang: str = "english"):
+    lang = (lang or "english").lower()
+    is_ar = "arabic" in lang or lang == "ar"
+    is_tr = "turkish" in lang or lang == "tr"
+
+    def _t(en, ar, tr):
+        if is_ar: return ar
+        if is_tr: return tr
+        return en
+
     base = [
-        "Consult a neurologist or neurosurgeon for further evaluation.",
-        "Bring this analysis report to your healthcare provider.",
+        _t("Consult a neurologist or neurosurgeon for further evaluation.", "استشر طبيب أعصاب أو جراح أعصاب لمزيد من التقييم.", "Daha ileri değerlendirme için bir nörolog veya beyin cerrahına danışın."),
+        _t("Bring this analysis report to your healthcare provider.", "أحضر تقرير هذا التحليل إلى مقدم الرعاية الصحية الخاص بك.", "Bu analiz raporunu sağlık uzmanınıza götürün."),
     ]
     if tumor_class == "no tumor":
         return {
-            "immediate": "No tumor detected. Continue routine health check-ups.",
+            "immediate": _t("No tumor detected. Continue routine health check-ups.", "لم يتم اكتشاف ورم. واصل الفحوصات الصحية الروتينية.", "Tümör tespit edilmedi. Rutin sağlık kontrollerine devam edin."),
             "lifestyle": [
-                "Maintain a healthy lifestyle with regular exercise.",
-                "Monitor for any neurological symptoms (headaches, vision changes, etc.).",
+                _t("Maintain a healthy lifestyle with regular exercise.", "حافظ على نمط حياة صحي مع ممارسة الرياضة بانتظام.", "Düzenli egzersizle sağlıklı bir yaşam tarzı sürdürün."),
+                _t("Monitor for any neurological symptoms (headaches, vision changes, etc.).", "راقب ظهور أي أعراض عصبية (صداع، تغيرات في الرؤية، إلخ).", "Nörolojik belirtileri izleyin (baş ağrısı, görme değişiklikleri vb.)."),
             ],
         }
     if severity == "high":
         return {
-            "immediate": "Seek specialist consultation promptly. Do not delay.",
+            "immediate": _t("Seek specialist consultation promptly. Do not delay.", "اطلب استشارة أخصائي فوراً. لا تتأخر.", "Vakit kaybetmeden bir uzmana danışın."),
             "lifestyle": base + [
-                "Request a comprehensive MRI with contrast enhancement for confirmation.",
-                "Document all symptoms including onset, severity, and frequency.",
+                _t("Request a comprehensive MRI with contrast enhancement for confirmation.", "اطلب رنيناً مغناطيسياً شاملاً مع صبغة تباين للتأكيد.", "Doğrulama için kontrastlı kapsamlı bir MRI isteyin."),
+                _t("Document all symptoms including onset, severity, and frequency.", "وثّق جميع الأعراض بما في ذلك وقت بدايتها وشدتها وتكرارها.", "Tüm belirtileri başlangıcı, şiddeti ve sıklığıyla birlikte kaydedin."),
             ],
         }
     return {
-        "immediate": "Schedule an appointment with a neurologist as soon as possible.",
+        "immediate": _t("Schedule an appointment with a neurologist as soon as possible.", "حدد موعداً مع طبيب أعصاب في أقرب وقت ممكن.", "En kısa sürede bir nörolog randevusu alın."),
         "lifestyle": base + [
-            "Follow-up with contrast-enhanced MRI as recommended by your physician.",
+            _t("Follow-up with contrast-enhanced MRI as recommended by your physician.", "قم بالمتابعة برنين مغناطيسي بصبغة التباين حسب توصية طبيبك.", "Doktorunuzun önerdiği şekilde kontrastlı MRI ile takip edin."),
         ],
     }

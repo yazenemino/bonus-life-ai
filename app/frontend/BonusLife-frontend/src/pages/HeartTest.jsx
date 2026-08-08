@@ -39,6 +39,7 @@ const HeartTest = ({ language = 'english' }) => {
     savedToAccount: 'تم الحفظ في حسابك.', viewInDashboard: 'عرض في لوحة التحكم',
     sex0: 'أنثى', sex1: 'ذكر', cp0: 'لا يوجد', cp1: 'ذبحة نموذجية', cp2: 'ذبحة غير نموذجية', cp3: 'غير ذبحية', cp4: 'بدون أعراض',
     slope1: 'صاعد', slope2: 'مسطح', slope3: 'نازل', thal3: 'طبيعي', thal6: 'ثابت', thal7: 'عكسي',
+    no: 'لا', yes: 'نعم', restecg0: 'طبيعي', restecg1: 'اضطراب ST-T', restecg2: 'تضخم البطين الأيسر',
   } : isTr ? {
     title: 'Kalp Hastalığı Risk Değerlendirmesi', subtitle: 'Klinik değerlerinizi girin; yapay zeka destekli kalp riski analizi.',
     badge: 'Yapay Zeka Destekli', submit: 'Analiz Yap', newTest: 'Yeni Değerlendirme', loading: 'Analiz ediliyor...',
@@ -50,6 +51,7 @@ const HeartTest = ({ language = 'english' }) => {
     savedToAccount: 'Hesabınıza kaydedildi.', viewInDashboard: 'Dashboard\'da görüntüle',
     sex0: 'Kadın', sex1: 'Erkek', cp0: 'Yok', cp1: 'Tipik anjina', cp2: 'Atipik anjina', cp3: 'Anjina dışı', cp4: 'Asemptomatik',
     slope1: 'Yukarı', slope2: 'Düz', slope3: 'Aşağı', thal3: 'Normal', thal6: 'Sabit', thal7: 'Reversibl',
+    no: 'Hayır', yes: 'Evet', restecg0: 'Normal', restecg1: 'ST-T Anormalliği', restecg2: 'Sol Ventrikül Hipertrofisi',
   } : {
     title: 'Heart Disease Risk Assessment', subtitle: 'Enter your clinical values for AI-powered heart risk analysis.',
     badge: 'AI-Powered', submit: 'Run Analysis', newTest: 'New Assessment', loading: 'Analyzing...',
@@ -61,6 +63,7 @@ const HeartTest = ({ language = 'english' }) => {
     savedToAccount: 'Saved to your account.', viewInDashboard: 'View in Dashboard',
     sex0: 'Female', sex1: 'Male', cp0: 'None', cp1: 'Typical angina', cp2: 'Atypical angina', cp3: 'Non-anginal', cp4: 'Asymptomatic',
     slope1: 'Upsloping', slope2: 'Flat', slope3: 'Downsloping', thal3: 'Normal', thal6: 'Fixed', thal7: 'Reversible',
+    no: 'No', yes: 'Yes', restecg0: 'Normal', restecg1: 'ST-T Abnormality', restecg2: 'LV Hypertrophy',
   };
 
   // Voice agent: fill heart form fields
@@ -157,6 +160,11 @@ const HeartTest = ({ language = 'english' }) => {
   };
 
   const risk = result?.risk_analysis?.risk_level || 'Unknown';
+  const RISK_LABEL_MAP = {
+    ar: { 'high risk': 'خطر مرتفع', 'moderate risk': 'خطر متوسط', 'low risk': 'خطر منخفض', 'very low risk': 'خطر منخفض جداً', 'unknown': 'غير معروف' },
+    tr: { 'high risk': 'Yüksek Risk', 'moderate risk': 'Orta Risk', 'low risk': 'Düşük Risk', 'very low risk': 'Çok Düşük Risk', 'unknown': 'Bilinmiyor' },
+  };
+  const riskDisplay = (isAr || isTr) ? (RISK_LABEL_MAP[isAr ? 'ar' : 'tr'][risk.toLowerCase()] || risk) : risk;
   const prob = ((result?.risk_analysis?.probability ?? 0) * 100).toFixed(1);
   const factors = result?.risk_analysis?.key_factors || [];
   const recs = result?.recommendations || {};
@@ -221,7 +229,7 @@ const HeartTest = ({ language = 'english' }) => {
                   <AnimatedSelect
                     value={formData.fbs}
                     onChange={(e) => setFormData(p => ({ ...p, fbs: e.target.value }))}
-                    options={[{ value: '0', label: 'No' }, { value: '1', label: 'Yes' }]}
+                    options={[{ value: '0', label: t.no }, { value: '1', label: t.yes }]}
                   />
                 </div>
                 <div className="space-y-2">
@@ -230,9 +238,9 @@ const HeartTest = ({ language = 'english' }) => {
                     value={formData.restecg}
                     onChange={(e) => setFormData(p => ({ ...p, restecg: e.target.value }))}
                     options={[
-                      { value: '0', label: 'Normal' },
-                      { value: '1', label: 'ST-T Abnormality' },
-                      { value: '2', label: 'LV Hypertrophy' },
+                      { value: '0', label: t.restecg0 },
+                      { value: '1', label: t.restecg1 },
+                      { value: '2', label: t.restecg2 },
                     ]}
                   />
                 </div>
@@ -242,7 +250,7 @@ const HeartTest = ({ language = 'english' }) => {
                   <AnimatedSelect
                     value={formData.exang}
                     onChange={(e) => setFormData(p => ({ ...p, exang: e.target.value }))}
-                    options={[{ value: '0', label: 'No' }, { value: '1', label: 'Yes' }]}
+                    options={[{ value: '0', label: t.no }, { value: '1', label: t.yes }]}
                   />
                 </div>
                 <FormField label={t.oldpeak} value={formData.oldpeak} onChange={(e) => setFormData(p => ({ ...p, oldpeak: e.target.value }))} hint="0–10" placeholder="0" />
@@ -315,7 +323,7 @@ const HeartTest = ({ language = 'english' }) => {
                     <div className={`card p-7 border-2 ${isHigh ? 'border-red-500/20 bg-red-500/[0.04]' : isMod ? 'border-amber-500/20 bg-amber-500/[0.04]' : 'border-violet-500/20 bg-violet-500/[0.04]'}`}>
                       <Target className={`w-6 h-6 mb-4 ${isHigh ? 'text-red-400' : isMod ? 'text-amber-400' : 'text-violet-400'}`} />
                       <div className={`text-5xl font-black mb-2 ${isHigh ? 'text-red-400' : isMod ? 'text-amber-400' : 'text-violet-400'}`}>{prob}%</div>
-                      <div className={`text-sm font-bold mb-3 ${isHigh ? 'text-red-300' : isMod ? 'text-amber-300' : 'text-violet-300'}`}>{risk}</div>
+                      <div className={`text-sm font-bold mb-3 ${isHigh ? 'text-red-300' : isMod ? 'text-amber-300' : 'text-violet-300'}`}>{riskDisplay}</div>
                       <p className="text-xs text-gray-500">{t.probLabel}</p>
                     </div>
                     <div className="card p-7">

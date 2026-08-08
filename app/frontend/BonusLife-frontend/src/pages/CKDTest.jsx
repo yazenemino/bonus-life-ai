@@ -321,6 +321,11 @@ const CKDTest = ({ language = 'english' }) => {
   };
 
   const prediction = result?.prediction || '';
+  const predictionDisplay = isAr
+    ? (prediction === 'CKD' ? 'قصور كلوي' : prediction === 'No CKD' ? 'لا يوجد قصور كلوي' : prediction)
+    : isTr
+    ? (prediction === 'CKD' ? 'KBH Var' : prediction === 'No CKD' ? 'KBH Yok' : prediction)
+    : prediction;
   const confidence = ((result?.confidence ?? 0) * 100).toFixed(1);
   const factors = result?.risk_analysis?.key_factors || [];
   const recs = result?.recommendations || {};
@@ -448,7 +453,7 @@ const CKDTest = ({ language = 'english' }) => {
                     <div className={`card p-7 border-2 ${isCKD ? 'border-red-500/20 bg-red-500/[0.04]' : 'border-violet-500/20 bg-violet-500/[0.04]'}`}>
                       <Target className={`w-6 h-6 mb-4 ${isCKD ? 'text-red-400' : 'text-violet-400'}`} />
                       <div className={`text-5xl font-black mb-2 ${isCKD ? 'text-red-400' : 'text-violet-400'}`}>{confidence}%</div>
-                      <div className={`text-xl font-bold mb-3 ${isCKD ? 'text-red-300' : 'text-violet-300'}`}>{prediction}</div>
+                      <div className={`text-xl font-bold mb-3 ${isCKD ? 'text-red-300' : 'text-violet-300'}`}>{predictionDisplay}</div>
                       <p className="text-xs text-gray-500">{t.modelConfidenceScore}</p>
                     </div>
 

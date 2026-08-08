@@ -85,22 +85,38 @@ async def ckd_assessment(
             else "Assessment completed. Consult a nephrologist for a comprehensive kidney function evaluation."
         )
 
+        lang = (request.language or "english").lower()
+        is_ar = "arabic" in lang or lang == "ar"
+        is_tr = "turkish" in lang or lang == "tr"
+
         risk_analysis = {
             "prediction": prediction_label,
             "confidence": round(probability, 3),
             "risk_level": "High Risk" if prediction_label == "CKD" else "Low Risk",
             "probability": round(probability, 3),
-            "key_factors": _identify_risk_factors(features),
+            "key_factors": _identify_risk_factors(features, lang),
             "feature_importances": feature_importances,
         }
-        recommendations = {
-            "lifestyle_changes": _lifestyle_recommendations(prediction_label, features),
-            "medical_followup": (
+        if prediction_label == "CKD":
+            medical_followup = (
+                "استشر طبيب كلى لقياس معدل الترشيح الكبيبي ونسبة الألبومين إلى الكرياتينين في البول، وإجراء تصوير بالموجات فوق الصوتية للكلى إذا اشتُبه بوجود قصور كلوي."
+                if is_ar else
+                "Böbrek yetmezliğinden şüpheleniliyorsa GFR ölçümü, idrarda albümin-kreatinin oranı ve böbrek ultrasonu için bir nefroloğa danışın."
+                if is_tr else
                 "Consult a nephrologist for GFR measurement, urine albumin-to-creatinine ratio, "
                 "and renal ultrasound if CKD is suspected."
-                if prediction_label == "CKD"
-                else "Maintain a healthy lifestyle and schedule annual kidney function tests."
-            ),
+            )
+        else:
+            medical_followup = (
+                "حافظ على نمط حياة صحي وقم بجدولة فحوصات سنوية لوظائف الكلى."
+                if is_ar else
+                "Sağlıklı bir yaşam tarzı sürdürün ve yıllık böbrek fonksiyon testleri planlayın."
+                if is_tr else
+                "Maintain a healthy lifestyle and schedule annual kidney function tests."
+            )
+        recommendations = {
+            "lifestyle_changes": _lifestyle_recommendations(prediction_label, features, lang),
+            "medical_followup": medical_followup,
         }
 
         assessment_id = str(uuid.uuid4())
@@ -150,60 +166,80 @@ async def ckd_assessment(
     )
 
 
-def _identify_risk_factors(features: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _identify_risk_factors(features: Dict[str, Any], lang: str = "english") -> List[Dict[str, Any]]:
+    is_ar = "arabic" in lang or lang == "ar"
+    is_tr = "turkish" in lang or lang == "tr"
+
+    def _t(en, ar, tr):
+        if is_ar: return ar
+        if is_tr: return tr
+        return en
+
+    def _sev(en):
+        return _t(en, "عالي" if en == "high" else "متوسط" if en == "moderate" else "منخفض",
+                   "Yüksek" if en == "high" else "Orta" if en == "moderate" else "Düşük")
+
     factors = []
     sc = features.get("serum_creatinine", 0)
     if sc > 1.5:
-        factors.append({"factor": f"Elevated serum creatinine ({sc} mg/dL)", "severity": "high"})
+        factors.append({"factor": _t(f"Elevated serum creatinine ({sc} mg/dL)", f"ارتفاع الكرياتينين في الدم ({sc} مغ/ديسيلتر)", f"Yüksek serum kreatinini ({sc} mg/dL)"), "severity": _sev("high")})
     elif sc > 1.2:
-        factors.append({"factor": f"Borderline serum creatinine ({sc} mg/dL)", "severity": "moderate"})
+        factors.append({"factor": _t(f"Borderline serum creatinine ({sc} mg/dL)", f"كرياتينين الدم حدّي ({sc} مغ/ديسيلتر)", f"Sınırda serum kreatinini ({sc} mg/dL)"), "severity": _sev("moderate")})
 
     bu = features.get("blood_urea", 0)
     if bu > 40:
-        factors.append({"factor": f"Elevated blood urea ({bu} mg/dL)", "severity": "high"})
+        factors.append({"factor": _t(f"Elevated blood urea ({bu} mg/dL)", f"ارتفاع اليوريا في الدم ({bu} مغ/ديسيلتر)", f"Yüksek kan üresi ({bu} mg/dL)"), "severity": _sev("high")})
 
     hemo = features.get("hemoglobin", 15)
     if hemo < 10:
-        factors.append({"factor": f"Low hemoglobin — anemia ({hemo} g/dL)", "severity": "high"})
+        factors.append({"factor": _t(f"Low hemoglobin — anemia ({hemo} g/dL)", f"انخفاض الهيموغلوبين — فقر دم ({hemo} غ/ديسيلتر)", f"Düşük hemoglobin — anemi ({hemo} g/dL)"), "severity": _sev("high")})
     elif hemo < 12:
-        factors.append({"factor": f"Mildly low hemoglobin ({hemo} g/dL)", "severity": "moderate"})
+        factors.append({"factor": _t(f"Mildly low hemoglobin ({hemo} g/dL)", f"انخفاض طفيف في الهيموغلوبين ({hemo} غ/ديسيلتر)", f"Hafif düşük hemoglobin ({hemo} g/dL)"), "severity": _sev("moderate")})
 
     al = features.get("albumin", 0)
     if al >= 3:
-        factors.append({"factor": f"High albuminuria (albumin={al})", "severity": "high"})
+        factors.append({"factor": _t(f"High albuminuria (albumin={al})", f"زلال بولي مرتفع (الألبومين={al})", f"Yüksek albüminüri (albümin={al})"), "severity": _sev("high")})
     elif al >= 1:
-        factors.append({"factor": f"Mild albuminuria (albumin={al})", "severity": "moderate"})
+        factors.append({"factor": _t(f"Mild albuminuria (albumin={al})", f"زلال بولي خفيف (الألبومين={al})", f"Hafif albüminüri (albümin={al})"), "severity": _sev("moderate")})
 
     htn = features.get("hypertension", 0)
     if htn == 1:
-        factors.append({"factor": "Hypertension present", "severity": "high"})
+        factors.append({"factor": _t("Hypertension present", "وجود ارتفاع ضغط الدم", "Hipertansiyon mevcut"), "severity": _sev("high")})
 
     dm = features.get("diabetes_mellitus", 0)
     if dm == 1:
-        factors.append({"factor": "Diabetes mellitus present", "severity": "high"})
+        factors.append({"factor": _t("Diabetes mellitus present", "وجود داء السكري", "Diyabet mevcut"), "severity": _sev("high")})
 
     bp = features.get("blood_pressure", 0)
     if bp >= 90:
-        factors.append({"factor": f"Elevated blood pressure ({bp} mmHg diastolic)", "severity": "moderate"})
+        factors.append({"factor": _t(f"Elevated blood pressure ({bp} mmHg diastolic)", f"ارتفاع ضغط الدم ({bp} مم زئبق انبساطي)", f"Yüksek kan basıncı ({bp} mmHg diyastolik)"), "severity": _sev("moderate")})
 
     if not factors:
-        factors.append({"factor": "No major CKD risk indicators from inputs", "severity": "low"})
+        factors.append({"factor": _t("No major CKD risk indicators from inputs", "لا توجد مؤشرات رئيسية لخطر الكلى من البيانات المدخلة", "Girilen verilerden önemli bir KBH risk göstergesi yok"), "severity": _sev("low")})
     return factors
 
 
-def _lifestyle_recommendations(prediction: str, features: Dict[str, Any]) -> List[str]:
+def _lifestyle_recommendations(prediction: str, features: Dict[str, Any], lang: str = "english") -> List[str]:
+    is_ar = "arabic" in lang or lang == "ar"
+    is_tr = "turkish" in lang or lang == "tr"
+
+    def _t(en, ar, tr):
+        if is_ar: return ar
+        if is_tr: return tr
+        return en
+
     recs = [
-        "Maintain adequate hydration (1.5–2L water/day unless restricted)",
-        "Adopt a kidney-friendly diet: limit sodium, protein, and phosphorus",
-        "Monitor blood pressure regularly and keep it under 130/80 mmHg",
-        "Control blood sugar if diabetic — HbA1c < 7%",
-        "Avoid nephrotoxic medications (NSAIDs, contrast dyes) without physician guidance",
+        _t("Maintain adequate hydration (1.5–2L water/day unless restricted)", "حافظ على ترطيب كافٍ (1.5-2 لتر ماء يومياً ما لم يكن هناك قيود)", "Yeterli sıvı alımını sürdürün (kısıtlama yoksa günde 1.5–2L su)"),
+        _t("Adopt a kidney-friendly diet: limit sodium, protein, and phosphorus", "اتبع نظاماً غذائياً صديقاً للكلى: قلّل الصوديوم والبروتين والفوسفور", "Böbrek dostu bir diyet uygulayın: sodyum, protein ve fosforu sınırlayın"),
+        _t("Monitor blood pressure regularly and keep it under 130/80 mmHg", "راقب ضغط الدم بانتظام واجعله أقل من 130/80 مم زئبق", "Kan basıncını düzenli izleyin ve 130/80 mmHg altında tutun"),
+        _t("Control blood sugar if diabetic — HbA1c < 7%", "تحكم بمستوى سكر الدم إذا كنت مصاباً بالسكري — HbA1c أقل من 7%", "Diyabetikseniz kan şekerini kontrol edin — HbA1c < %7"),
+        _t("Avoid nephrotoxic medications (NSAIDs, contrast dyes) without physician guidance", "تجنب الأدوية السامة للكلى (مضادات الالتهاب غير الستيرويدية، صبغات التباين) دون إشراف طبي", "Doktor önerisi olmadan böbreğe zararlı ilaçlardan (NSAİİ, kontrast maddeler) kaçının"),
     ]
     if prediction == "CKD":
-        recs.insert(0, "Seek nephrology consultation promptly for CKD staging (eGFR, urine ACR)")
-        recs.append("Avoid smoking and limit alcohol consumption")
-        recs.append("Schedule follow-up kidney function tests every 3–6 months")
+        recs.insert(0, _t("Seek nephrology consultation promptly for CKD staging (eGFR, urine ACR)", "اطلب استشارة طبيب كلى فوراً لتحديد مرحلة القصور الكلوي (eGFR، نسبة الألبومين للكرياتينين)", "KBH evrelemesi için (eGFR, idrar ACR) hemen bir nefrolog görüşü alın"))
+        recs.append(_t("Avoid smoking and limit alcohol consumption", "تجنب التدخين وقلل من استهلاك الكحول", "Sigaradan kaçının ve alkol tüketimini sınırlayın"))
+        recs.append(_t("Schedule follow-up kidney function tests every 3–6 months", "جدول فحوصات متابعة لوظائف الكلى كل 3-6 أشهر", "Her 3–6 ayda bir böbrek fonksiyon testi takibi planlayın"))
     else:
-        recs.append("Annual kidney function screening is recommended")
-        recs.append("Stay physically active with moderate exercise (150 min/week)")
+        recs.append(_t("Annual kidney function screening is recommended", "يُنصح بإجراء فحص سنوي لوظائف الكلى", "Yıllık böbrek fonksiyon taraması önerilir"))
+        recs.append(_t("Stay physically active with moderate exercise (150 min/week)", "حافظ على نشاطك البدني بتمارين معتدلة (150 دقيقة أسبوعياً)", "Orta düzeyde egzersizle fiziksel olarak aktif kalın (haftada 150 dk)"))
     return recs

@@ -116,6 +116,11 @@ export default function BrainMRI({ language }) {
   const tumorColors = TUMOR_COLORS[tumorClass] || DEFAULT_COLORS;
   const isNoTumor = tumorClass === 'no tumor';
   const confidencePct = confidence != null ? Math.round(confidence * 100) : null;
+  const tumorClassDisplay = isAr
+    ? (tumorClass === 'no tumor' ? 'سليم' : tumorClass === 'glioma' ? 'ورم دبقي' : tumorClass === 'meningioma' ? 'ورم سحائي' : tumorClass === 'pituitary' ? 'ورم نخامي' : tumorClass)
+    : isTr
+    ? (tumorClass === 'no tumor' ? 'Tümör Yok' : tumorClass === 'glioma' ? 'Gliyom' : tumorClass === 'meningioma' ? 'Menenjiyom' : tumorClass === 'pituitary' ? 'Hipofiz' : tumorClass)
+    : tumorClass;
 
   const cardStyle = {
     background: 'rgba(255,255,255,0.03)',
@@ -254,7 +259,7 @@ export default function BrainMRI({ language }) {
               <div className="rounded-2xl p-6"
                 style={{ background: tumorColors.bg, border: `1px solid ${tumorColors.border}` }}>
                 <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">{isAr ? 'التصنيف' : isTr ? 'Sınıflandırma' : 'Classification'}</p>
-                <p className="text-3xl font-black capitalize mb-2" style={{ color: tumorColors.text }}>{tumorClass}</p>
+                <p className="text-3xl font-black capitalize mb-2" style={{ color: tumorColors.text }}>{tumorClassDisplay}</p>
                 {confidencePct != null && (
                   <div className="flex items-center gap-3 mt-2">
                     <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.2)' }}>

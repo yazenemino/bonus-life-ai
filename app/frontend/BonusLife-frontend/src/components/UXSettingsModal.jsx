@@ -85,7 +85,41 @@ function SettingRow({ icon: Icon, iconColor = 'text-gray-500', label, descriptio
   );
 }
 
-export default function UXSettingsModal({ isOpen, onClose }) {
+export default function UXSettingsModal({ isOpen, onClose, language = 'english' }) {
+  const isAr = language === 'arabic';
+  const isTr = language === 'turkish';
+  const t = {
+    preferences: isAr ? 'التفضيلات' : isTr ? 'Tercihler' : 'Preferences',
+    customizeExperience: isAr ? 'خصّص تجربتك' : isTr ? 'Deneyiminizi özelleştirin' : 'Customize your experience',
+    close: isAr ? 'إغلاق' : isTr ? 'Kapat' : 'Close',
+    appearance: isAr ? 'المظهر' : isTr ? 'Görünüm' : 'Appearance',
+    theme: isAr ? 'السمة' : isTr ? 'Tema' : 'Theme',
+    chooseColorScheme: isAr ? 'اختر نظام الألوان' : isTr ? 'Renk şemanızı seçin' : 'Choose your color scheme',
+    default: isAr ? '☀ افتراضي' : isTr ? '☀ Varsayılan' : '☀ Default',
+    system: isAr ? '⬛ النظام' : isTr ? '⬛ Sistem' : '⬛ System',
+    textSize: isAr ? 'حجم النص' : isTr ? 'Metin boyutu' : 'Text size',
+    baseFontSize: isAr ? 'حجم الخط الأساسي في التطبيق' : isTr ? 'Uygulama genelinde temel yazı tipi boyutu' : 'Base font size across the app',
+    normal: isAr ? 'عادي' : isTr ? 'Normal' : 'Normal',
+    large: isAr ? 'كبير' : isTr ? 'Büyük' : 'Large',
+    accessibility: isAr ? 'إمكانية الوصول' : isTr ? 'Erişilebilirlik' : 'Accessibility',
+    highContrast: isAr ? 'تباين عالٍ' : isTr ? 'Yüksek kontrast' : 'High contrast',
+    highContrastDesc: isAr ? 'زيادة تباين النص والحدود' : isTr ? 'Metin ve kenarlık kontrastını artırın' : 'Increase text and border contrast',
+    motionInteraction: isAr ? 'الحركة والتفاعل' : isTr ? 'Hareket ve Etkileşim' : 'Motion & Interaction',
+    motion: isAr ? 'الحركة' : isTr ? 'Hareket' : 'Motion',
+    motionDesc: isAr ? 'يتحكم في الرسوم المتحركة والانتقالات' : isTr ? 'Animasyonları ve geçişleri kontrol eder' : 'Controls animations and transitions',
+    auto: isAr ? 'تلقائي' : isTr ? 'Otomatik' : 'Auto',
+    reduced: isAr ? 'مخفّض' : isTr ? 'Azaltılmış' : 'Reduced',
+    full: isAr ? 'كامل' : isTr ? 'Tam' : 'Full',
+    hapticFeedback: isAr ? 'الاستجابة اللمسية' : isTr ? 'Dokunsal geri bildirim' : 'Haptic feedback',
+    hapticDesc: isAr ? 'اهتزاز على الأجهزة المحمولة' : isTr ? 'Mobil cihazlarda titreşim' : 'Vibration on mobile devices',
+    soundVoice: isAr ? 'الصوت' : isTr ? 'Ses' : 'Sound & Voice',
+    chartSounds: isAr ? 'أصوات الرسوم البيانية' : isTr ? 'Grafik sesleri' : 'Chart sounds',
+    chartSoundsDesc: isAr ? 'استمع إلى البيانات كنغمات عند تمرير المؤشر فوق الرسوم البيانية' : isTr ? 'Grafiklerin üzerine gelindiğinde verileri ton olarak duyun' : 'Hear data as tones when hovering charts',
+    voiceAssistant: isAr ? 'المساعد الصوتي' : isTr ? 'Sesli asistan' : 'Voice assistant',
+    voiceAssistantDesc: isAr ? 'صوت ElevenLabs لوكيل الذكاء الاصطناعي' : isTr ? 'Yapay zeka ajanı için ElevenLabs sesi' : 'ElevenLabs voice for the AI agent',
+    loadingVoices: isAr ? 'جارِ تحميل الأصوات…' : isTr ? 'Sesler yükleniyor…' : 'Loading voices…',
+    defaultBackend: isAr ? 'افتراضي (الخادم)' : isTr ? 'Varsayılan (sunucu)' : 'Default (backend)',
+  };
   const containerRef = useFocusTrap(isOpen, onClose);
   const [ttsVoices, setTtsVoices] = useState([]);
   const [ttsVoiceLoading, setTtsVoiceLoading] = useState(false);
@@ -158,15 +192,15 @@ export default function UXSettingsModal({ isOpen, onClose }) {
                 <Palette className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h2 id="ux-settings-title" className="text-sm font-bold text-white leading-tight">Preferences</h2>
-                <p className="text-[11px] text-gray-500">Customize your experience</p>
+                <h2 id="ux-settings-title" className="text-sm font-bold text-white leading-tight">{t.preferences}</h2>
+                <p className="text-[11px] text-gray-500">{t.customizeExperience}</p>
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
               className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:bg-white/[0.07] hover:text-white transition focus:outline-none"
-              aria-label="Close"
+              aria-label={t.close}
             >
               <X className="w-4 h-4" />
             </button>
@@ -176,7 +210,7 @@ export default function UXSettingsModal({ isOpen, onClose }) {
           <div className="overflow-y-auto px-4 py-4 space-y-3" style={{ maxHeight: 'calc(85vh - 80px)', scrollbarWidth: 'none' }}>
 
             {/* ── Appearance ── */}
-            <SectionHeader label="Appearance" />
+            <SectionHeader label={t.appearance} />
 
             {/* Theme pill selector */}
             <div className="px-4 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.05]">
@@ -185,16 +219,16 @@ export default function UXSettingsModal({ isOpen, onClose }) {
                   <ThemeIcon className="w-4 h-4 text-violet-400" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-white leading-tight">Theme</p>
-                  <p className="text-xs text-gray-500">Choose your color scheme</p>
+                  <p className="text-sm font-medium text-white leading-tight">{t.theme}</p>
+                  <p className="text-xs text-gray-500">{t.chooseColorScheme}</p>
                 </div>
               </div>
               <PillGroup
                 value={theme}
                 onChange={setTheme}
                 options={[
-                  { value: 'default', label: '☀ Default' },
-                  { value: 'system', label: '⬛ System' },
+                  { value: 'default', label: t.default },
+                  { value: 'system', label: t.system },
                 ]}
               />
             </div>
@@ -206,27 +240,27 @@ export default function UXSettingsModal({ isOpen, onClose }) {
                   <Type className="w-4 h-4 text-gray-400" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-white leading-tight">Text size</p>
-                  <p className="text-xs text-gray-500">Base font size across the app</p>
+                  <p className="text-sm font-medium text-white leading-tight">{t.textSize}</p>
+                  <p className="text-xs text-gray-500">{t.baseFontSize}</p>
                 </div>
               </div>
               <PillGroup
                 value={textSize}
                 onChange={setTextSize}
                 options={[
-                  { value: 'normal', label: 'Normal' },
-                  { value: 'lg', label: 'Large' },
+                  { value: 'normal', label: t.normal },
+                  { value: 'lg', label: t.large },
                 ]}
               />
             </div>
 
             {/* ── Accessibility ── */}
-            <SectionHeader label="Accessibility" />
+            <SectionHeader label={t.accessibility} />
 
             <SettingRow
               icon={() => <span className="text-sm text-gray-400" aria-hidden>◐</span>}
-              label="High contrast"
-              description="Increase text and border contrast"
+              label={t.highContrast}
+              description={t.highContrastDesc}
               control={
                 <Toggle
                   checked={contrast === 'on'}
@@ -236,7 +270,7 @@ export default function UXSettingsModal({ isOpen, onClose }) {
             />
 
             {/* ── Motion & Interaction ── */}
-            <SectionHeader label="Motion & Interaction" />
+            <SectionHeader label={t.motionInteraction} />
 
             <div className="px-4 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.05]">
               <div className="flex items-center gap-3 mb-3">
@@ -244,25 +278,25 @@ export default function UXSettingsModal({ isOpen, onClose }) {
                   <Move className="w-4 h-4 text-gray-400" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-white leading-tight">Motion</p>
-                  <p className="text-xs text-gray-500">Controls animations and transitions</p>
+                  <p className="text-sm font-medium text-white leading-tight">{t.motion}</p>
+                  <p className="text-xs text-gray-500">{t.motionDesc}</p>
                 </div>
               </div>
               <PillGroup
                 value={motion}
                 onChange={setMotion}
                 options={[
-                  { value: 'auto', label: 'Auto' },
-                  { value: 'reduced', label: 'Reduced' },
-                  { value: 'full', label: 'Full' },
+                  { value: 'auto', label: t.auto },
+                  { value: 'reduced', label: t.reduced },
+                  { value: 'full', label: t.full },
                 ]}
               />
             </div>
 
             <SettingRow
               icon={Zap}
-              label="Haptic feedback"
-              description="Vibration on mobile devices"
+              label={t.hapticFeedback}
+              description={t.hapticDesc}
               control={
                 <Toggle
                   checked={haptics === 'on'}
@@ -272,12 +306,12 @@ export default function UXSettingsModal({ isOpen, onClose }) {
             />
 
             {/* ── Sound & Voice ── */}
-            <SectionHeader label="Sound & Voice" />
+            <SectionHeader label={t.soundVoice} />
 
             <SettingRow
               icon={Volume2}
-              label="Chart sounds"
-              description="Hear data as tones when hovering charts"
+              label={t.chartSounds}
+              description={t.chartSoundsDesc}
               control={
                 <Toggle
                   checked={sound === 'on'}
@@ -293,8 +327,8 @@ export default function UXSettingsModal({ isOpen, onClose }) {
                   <Mic className="w-4 h-4 text-gray-400" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-white leading-tight">Voice assistant</p>
-                  <p className="text-xs text-gray-500">ElevenLabs voice for the AI agent</p>
+                  <p className="text-sm font-medium text-white leading-tight">{t.voiceAssistant}</p>
+                  <p className="text-xs text-gray-500">{t.voiceAssistantDesc}</p>
                 </div>
               </div>
               <AnimatedSelect
@@ -302,7 +336,7 @@ export default function UXSettingsModal({ isOpen, onClose }) {
                 onChange={e => setTtsVoiceId(e.target.value)}
                 disabled={ttsVoiceLoading}
                 options={[
-                  { value: '', label: ttsVoiceLoading ? 'Loading voices…' : 'Default (backend)' },
+                  { value: '', label: ttsVoiceLoading ? t.loadingVoices : t.defaultBackend },
                   ...ttsVoices.map(v => ({ value: v.voice_id, label: v.name || v.voice_id })),
                 ]}
               />

@@ -206,6 +206,11 @@ const DiabetesTest = ({ language = 'english' }) => {
   };
 
   const risk = result?.risk_level || result?.risk_analysis?.risk_level || 'Unknown';
+  const RISK_LABEL_MAP = {
+    ar: { 'high risk': 'خطر مرتفع', 'moderate risk': 'خطر متوسط', 'low risk': 'خطر منخفض', 'very low risk': 'خطر منخفض جداً', 'unknown': 'غير معروف' },
+    tr: { 'high risk': 'Yüksek Risk', 'moderate risk': 'Orta Risk', 'low risk': 'Düşük Risk', 'very low risk': 'Çok Düşük Risk', 'unknown': 'Bilinmiyor' },
+  };
+  const riskDisplay = (isAr || isTr) ? (RISK_LABEL_MAP[isAr ? 'ar' : 'tr'][risk.toLowerCase()] || risk) : risk;
   const prob = ((result?.probability || result?.risk_analysis?.probability || 0) * 100).toFixed(1);
   const factors = result?.key_factors || result?.risk_analysis?.key_factors || [];
   const metrics = result?.health_metrics || {};
@@ -356,7 +361,7 @@ const DiabetesTest = ({ language = 'english' }) => {
                     <div className={`card p-7 border-2 animate-fade-in-up ${isHigh ? 'border-red-500/20 bg-red-500/[0.04]' : isMod ? 'border-amber-500/20 bg-amber-500/[0.04]' : 'border-violet-500/20 bg-violet-500/[0.04]'}`}>
                       <Target className={`w-6 h-6 mb-4 ${isHigh ? 'text-red-400' : isMod ? 'text-amber-400' : 'text-violet-400'}`} />
                       <div className={`text-5xl font-black mb-2 ${isHigh ? 'text-red-400' : isMod ? 'text-amber-400' : 'text-violet-400'}`}>{prob}%</div>
-                      <div className={`text-sm font-bold mb-3 ${isHigh ? 'text-red-300' : isMod ? 'text-amber-300' : 'text-violet-300'}`}>{risk}</div>
+                      <div className={`text-sm font-bold mb-3 ${isHigh ? 'text-red-300' : isMod ? 'text-amber-300' : 'text-violet-300'}`}>{riskDisplay}</div>
                       <p className="text-xs text-gray-500">{t.probLabel}</p>
                     </div>
 
