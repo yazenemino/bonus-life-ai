@@ -516,7 +516,7 @@ app = FastAPI(
 # CORS — only allow known origins; never use wildcard with credentials.
 # FRONTEND_URL accepts a comma-separated list so a custom domain and the default
 # Vercel subdomain (or apex + www) can be allowed at the same time during migration,
-# e.g. FRONTEND_URL=https://bonuslife.tech,https://www.bonuslife.tech,https://bonuslife.vercel.app
+# e.g. FRONTEND_URL=https://bonuslife.tech,https://www.bonuslife.tech,https://bonus-life-ai.vercel.app
 _frontend_urls = [
     u.strip().rstrip("/")
     for u in os.getenv("FRONTEND_URL", "http://localhost:5173").split(",")
@@ -524,6 +524,9 @@ _frontend_urls = [
 ]
 _CORS_ORIGINS = list({
     *_frontend_urls,
+    # Vercel production domain (project: bonus-life-ai) — baked in as a safe default so the
+    # deploy works even before FRONTEND_URL is set on Railway. Harmless to keep once it is.
+    "https://bonus-life-ai.vercel.app",
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175",
@@ -531,6 +534,10 @@ _CORS_ORIGINS = list({
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
+    # Vercel preview deployments get a unique per-branch/per-commit subdomain
+    # (bonus-life-ai-<hash-or-branch>-<team>.vercel.app) that can't be listed ahead of time —
+    # match them by pattern instead. Tightened to this project's prefix, not all of *.vercel.app.
+    allow_origin_regex=r"^https://bonus-life-ai(-[a-z0-9]+)*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
