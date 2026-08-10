@@ -97,7 +97,7 @@ export default function MealPhotoAnalyzer({ language }) {
     if (!imageBase64) { setError(isAr ? 'يرجى إضافة أو التقاط صورة أولاً.' : isTr ? 'Önce bir fotoğraf ekleyin veya çekin.' : 'Please add or take a photo first.'); return; }
     setLoading(true); setError(''); setResult(null);
     try {
-      const data = await analyzeMealPhoto(imageBase64, saveToLog);
+      const data = await analyzeMealPhoto(imageBase64, saveToLog, language || 'english');
       setResult(data);
       if (saveToLog && data.saved_to_log) loadLog();
     } catch (err) { setError(err.message || (isAr ? 'فشل التحليل.' : isTr ? 'Analiz başarısız.' : 'Analysis failed.')); }

@@ -710,10 +710,10 @@ export async function adminBulkEmail(subject, body, user_ids = null, role_filter
 }
 
 // ---- Meal Photo Analyzer ----
-export async function analyzeMealPhoto(imageBase64, saveToLog = false) {
+export async function analyzeMealPhoto(imageBase64, saveToLog = false, language = 'english') {
   return apiRequest('/api/v1/meal-photo/analyze', {
     method: 'POST',
-    body: JSON.stringify({ image_base64: imageBase64, save_to_log: saveToLog }),
+    body: JSON.stringify({ image_base64: imageBase64, save_to_log: saveToLog, language }),
   });
 }
 

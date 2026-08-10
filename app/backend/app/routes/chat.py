@@ -52,9 +52,10 @@ async def diabetes_chat(chat_request: ChatRequest, background_tasks: BackgroundT
         raise
     except Exception:
         logger.exception("Chat error")
-        detail = (
-            "Yapay zeka diyabet uzmanı şu an kullanılamıyor. Lütfen daha sonra tekrar deneyin."
-            if getattr(chat_request, "language", None) == "turkish"
-            else "Our AI diabetes specialist is currently unavailable. Please try again later."
-        )
+        detail_by_language = {
+            "turkish": "Yapay zeka diyabet uzmanı şu an kullanılamıyor. Lütfen daha sonra tekrar deneyin.",
+            "arabic": "أخصائي السكري الذكي غير متوفر حالياً. يرجى المحاولة لاحقاً.",
+            "english": "Our AI diabetes specialist is currently unavailable. Please try again later.",
+        }
+        detail = detail_by_language.get(getattr(chat_request, "language", None), detail_by_language["english"])
         raise HTTPException(status_code=500, detail=detail)

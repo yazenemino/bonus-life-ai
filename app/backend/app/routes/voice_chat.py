@@ -62,7 +62,12 @@ async def voice_chat_assistant(
         raise
     except Exception as e:
         logger.error(f"Voice chat error: {e}")
-        raise HTTPException(status_code=500, detail="Voice chat service is temporarily unavailable.")
+        detail_by_language = {
+            "arabic": "خدمة المحادثة الصوتية غير متوفرة مؤقتاً.",
+            "turkish": "Sesli sohbet hizmeti geçici olarak kullanılamıyor.",
+            "english": "Voice chat service is temporarily unavailable.",
+        }
+        raise HTTPException(status_code=500, detail=detail_by_language.get(request.language, detail_by_language["english"]))
 
 
 def _get_last_assessment_for_user(db: Session, user_id: int) -> Optional[dict]:
@@ -132,4 +137,9 @@ async def voice_chat_test(
         raise
     except Exception as e:
         logger.error(f"Voice chat test error: {e}")
-        raise HTTPException(status_code=500, detail="Voice chat test failed")
+        detail_by_language = {
+            "arabic": "فشل اختبار المحادثة الصوتية.",
+            "turkish": "Sesli sohbet testi başarısız oldu.",
+            "english": "Voice chat test failed",
+        }
+        raise HTTPException(status_code=500, detail=detail_by_language.get(language, detail_by_language["english"]))

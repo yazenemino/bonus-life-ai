@@ -1,4 +1,4 @@
-"""AI Diabetes Specialist – Groq only.
+"""AI Diabetes Specialist – Groq primary, Gemini secondary fallback.
 
 Authors: Muhammed Jalahej, Yazen Emino
 """
@@ -11,7 +11,40 @@ from typing import Any, Dict, List, Optional
 
 from groq import Groq
 
+from app.services import gemini_service
+
 logger = logging.getLogger(__name__)
+
+GREETING_WORDS = {
+    "arabic": ["مرحبا", "مرحباً", "أهلا", "أهلاً", "السلام عليكم", "صباح الخير", "مساء الخير", "هلا", "اهلين"],
+    "turkish": ["merhaba", "selam", "günaydın", "iyi günler", "iyi akşamlar"],
+    "english": ["hi", "hello", "hey", "good morning", "good evening", "good afternoon"],
+}
+
+GREETING_REPLY = {
+    "arabic": "أهلاً بك! أنا مساعدك الذكي لمرض السكري. كيف يمكنني مساعدتك اليوم؟",
+    "turkish": "Merhaba! Ben diyabet konusunda yapay zeka asistanınızım. Bugün size nasıl yardımcı olabilirim?",
+    "english": "Hello! I'm your AI diabetes assistant. How can I help you today?",
+}
+
+
+def _is_greeting(message: str, language: str) -> bool:
+    text = (message or "").strip().lower()
+    if not text or len(text) > 40:
+        return False
+    words = GREETING_WORDS.get(language, []) + GREETING_WORDS["english"] + GREETING_WORDS["arabic"] + GREETING_WORDS["turkish"]
+    return any(text == w or text.startswith(w) for w in words)
+
+
+async def _try_gemini(messages: List[Dict[str, str]]) -> Optional[str]:
+    """Best-effort secondary provider. Returns None if Gemini isn't configured or fails."""
+    if not gemini_service.is_available():
+        return None
+    try:
+        return await asyncio.to_thread(gemini_service.generate_chat, messages)
+    except Exception as e:
+        logger.warning("Gemini fallback failed: %s", e)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -40,11 +73,18 @@ class AIDiabetesSpecialist:
 
     # -- prompt -----------------------------------------------------------
     def create_medical_prompt(self, message: str, language: str, user_context: Dict = None) -> str:
+        lang_directive = {
+            "arabic": "Respond ONLY in Arabic (فصحى بسيطة وواضحة), regardless of the language of the question.",
+            "turkish": "Respond ONLY in Turkish, regardless of the language of the question.",
+        }.get(language, "Respond in English.")
         prompt = (
             "You are Bonus Life AI, an expert diabetes specialist and health advisor. "
             "Provide accurate, helpful medical information about diabetes prevention, management, and treatment.\n\n"
             f'USER QUESTION: "{message}"\n'
-            f"LANGUAGE: {language}\n\n"
+            f"LANGUAGE: {language}. {lang_directive}\n\n"
+            "If the user's message is just a greeting (e.g. hi, hello, مرحبا, merhaba) and not a health "
+            "question, reply with a short, friendly greeting and invite them to ask a diabetes-related "
+            "question. Do NOT dump medical information (e.g. symptom lists) unless it was actually asked for.\n\n"
             "RESPONSE REQUIREMENTS:\n"
             "1. Provide medically accurate information about diabetes\n"
             "2. Focus on prevention strategies and healthy lifestyle\n"
@@ -65,31 +105,19 @@ class AIDiabetesSpecialist:
 
     # -- generate ---------------------------------------------------------
     async def generate_medical_response(self, message: str, language: str = "english", user_id: str = "default") -> Dict[str, Any]:
+        user_profile = self.get_user_profile(user_id)
+        system_prompt = self.create_medical_prompt(message, language, user_profile.get("user_context", {}))
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": message},
+        ]
+        history = self.get_conversation_history(user_id)
+        for msg in history[-3:]:
+            messages.insert(1, {"role": msg["role"], "content": msg["content"]})
+
         try:
             if not self.client:
-                logger.error("LLM client not available")
-                if language == "turkish":
-                    return {
-                        "success": False,
-                        "response": "Üzgünüz, yapay zeka uzmanımız şu an kullanılamıyor. Lütfen daha sonra tekrar deneyin veya acil tıbbi konularda bir sağlık kuruluşuna başvurun.",
-                        "model": "unavailable",
-                    }
-                return {
-                    "success": False,
-                    "response": "I apologize, but our AI specialist is currently unavailable. Please try again later or consult with a healthcare provider for immediate medical advice.",
-                    "model": "unavailable",
-                }
-
-            user_profile = self.get_user_profile(user_id)
-            system_prompt = self.create_medical_prompt(message, language, user_profile.get("user_context", {}))
-
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": message},
-            ]
-            history = self.get_conversation_history(user_id)
-            for msg in history[-3:]:
-                messages.insert(1, {"role": msg["role"], "content": msg["content"]})
+                raise RuntimeError("Groq client not configured")
 
             model_name = os.getenv("LLM_MODEL_NAME", "llama-3.1-8b-instant")
             response = await asyncio.to_thread(
@@ -107,21 +135,27 @@ class AIDiabetesSpecialist:
 
             return {"success": True, "response": llm_response, "model": model_name}
         except Exception as e:
+            logger.warning("Groq chat generation failed (%s); trying Gemini fallback.", e)
+            gemini_response = await _try_gemini(messages)
+            if gemini_response:
+                self.add_to_conversation(user_id, "user", message)
+                self.add_to_conversation(user_id, "assistant", gemini_response)
+                self.update_user_profile(user_id, message, gemini_response)
+                return {"success": True, "response": gemini_response, "model": "gemini-fallback"}
+
             logger.exception("LLM generation error (chat/assessment): %s", e)
             err_msg = str(e)
             is_dev = os.getenv("ENVIRONMENT", "").lower() == "development" or os.getenv("DEBUG", "").lower() in ("true", "1", "yes")
             extra = {"error_detail": err_msg} if is_dev else {}
-            if language == "turkish":
-                return {
-                    "success": False,
-                    "response": "Teknik bir sorun yaşanıyor. Lütfen kısa süre sonra tekrar deneyin veya acil tıbbi sorularınız için bir sağlık kuruluşuna başvurun.",
-                    "model": "error",
-                    **extra,
-                }
+            unavailable_text = {
+                "arabic": "عذراً، مساعدنا الذكي غير متوفر حالياً. يرجى المحاولة لاحقاً أو استشارة أخصائي رعاية صحية للحالات الطارئة.",
+                "turkish": "Üzgünüz, yapay zeka uzmanımız şu an kullanılamıyor. Lütfen daha sonra tekrar deneyin veya acil tıbbi konularda bir sağlık kuruluşuna başvurun.",
+                "english": "I apologize, but our AI specialist is currently unavailable. Please try again later or consult with a healthcare provider for immediate medical advice.",
+            }
             return {
                 "success": False,
-                "response": "I apologize, but I'm experiencing technical difficulties. Please try again shortly or consult with a healthcare provider for urgent medical questions.",
-                "model": "error",
+                "response": unavailable_text.get(language, unavailable_text["english"]),
+                "model": "unavailable",
                 **extra,
             }
 
@@ -317,31 +351,38 @@ class GPTOSSDiabetesSpecialist:
         user_has_no_assessment: bool = False,
     ) -> Dict[str, Any]:
         self.add_to_conversation(user_id, "user", message)
-        if not self.client:
-            fb = self._get_enhanced_fallback(message, language)
-            self.add_to_conversation(user_id, "assistant", fb)
-            return {"success": False, "response": fb, "model": "enhanced_fallback", "status": "fallback"}
-        try:
-            model_name = os.getenv("LLM_MODEL_NAME", "llama-3.1-8b-instant")
-            temperature = float(os.getenv("LLM_TEMPERATURE", 0.6))
-            max_tokens = 800 if is_voice else 1500
-            ctx = {"user_id": user_id, "is_voice": is_voice, "user_has_no_assessment": user_has_no_assessment}
-            if assessment_context:
-                ctx["assessment_context"] = assessment_context
-            msgs = self.create_diabetes_prompt(message, language, ctx)
-            response = self.client.chat.completions.create(
-                model=model_name, messages=msgs, temperature=temperature, max_tokens=max_tokens
-            )
-            llm_resp = response.choices[0].message.content
-            self.add_to_conversation(user_id, "assistant", llm_resp)
-            return {"success": True, "response": llm_resp, "model": model_name, "status": "success"}
-        except Exception as e:
-            logger.error(f"GPT-OSS-20B call failed: {e}")
-            fb = self._get_enhanced_fallback(message, language)
-            self.add_to_conversation(user_id, "assistant", fb)
-            return {"success": False, "response": fb, "model": "error_fallback", "status": "error"}
+        ctx = {"user_id": user_id, "is_voice": is_voice, "user_has_no_assessment": user_has_no_assessment}
+        if assessment_context:
+            ctx["assessment_context"] = assessment_context
+        msgs = self.create_diabetes_prompt(message, language, ctx)
+
+        if self.client:
+            try:
+                model_name = os.getenv("LLM_MODEL_NAME", "llama-3.1-8b-instant")
+                temperature = float(os.getenv("LLM_TEMPERATURE", 0.6))
+                max_tokens = 800 if is_voice else 1500
+                response = self.client.chat.completions.create(
+                    model=model_name, messages=msgs, temperature=temperature, max_tokens=max_tokens
+                )
+                llm_resp = response.choices[0].message.content
+                self.add_to_conversation(user_id, "assistant", llm_resp)
+                return {"success": True, "response": llm_resp, "model": model_name, "status": "success"}
+            except Exception as e:
+                logger.error(f"GPT-OSS-20B call failed: {e}")
+
+        gemini_resp = await _try_gemini(msgs)
+        if gemini_resp:
+            self.add_to_conversation(user_id, "assistant", gemini_resp)
+            return {"success": True, "response": gemini_resp, "model": "gemini-fallback", "status": "success"}
+
+        fb = self._get_enhanced_fallback(message, language)
+        self.add_to_conversation(user_id, "assistant", fb)
+        return {"success": False, "response": fb, "model": "enhanced_fallback", "status": "fallback"}
 
     def _get_enhanced_fallback(self, message: str, language: str) -> str:
+        """Last-resort static reply when both Groq and Gemini are unavailable."""
+        if _is_greeting(message, language):
+            return GREETING_REPLY.get(language, GREETING_REPLY["english"])
         if language == "turkish":
             return (
                 "**Yapay Zeka Diyabet Asistanı**\n\n"

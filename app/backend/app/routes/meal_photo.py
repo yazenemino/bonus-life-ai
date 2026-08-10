@@ -31,10 +31,15 @@ async def analyze_meal(
 ):
     """Analyze a meal photo: identify meal, estimate carb level (low/medium/high), suggest healthier swaps. Optionally save to user's meal log."""
     try:
-        result = await analyze_meal_image(request.image_base64)
+        result = await analyze_meal_image(request.image_base64, language=request.language)
     except Exception as e:
         logger.exception(f"Meal analyze failed: {e}")
-        raise HTTPException(status_code=500, detail="Meal analysis failed")
+        detail = (
+            "فشل تحليل الوجبة" if request.language == "arabic"
+            else "Öğün analizi başarısız oldu" if request.language == "turkish"
+            else "Meal analysis failed"
+        )
+        raise HTTPException(status_code=500, detail=detail)
 
     saved = False
     if request.save_to_log and current_user:

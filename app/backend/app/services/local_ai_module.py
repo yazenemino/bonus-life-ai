@@ -1,6 +1,7 @@
 """
 Local AI module: one module for two features (health tip, scenario).
-Tries Ollama first (local); falls back to Groq cloud API if GROQ_API_KEY is set.
+Uses Groq / Gemini cloud APIs (production). Ollama is optional and only
+attempted when explicitly enabled for local development via USE_OLLAMA=true.
 """
 import os
 import logging
@@ -9,13 +10,22 @@ from typing import Optional
 
 import httpx
 
+from app.services import gemini_service
+
 logger = logging.getLogger(__name__)
 
+USE_OLLAMA = os.getenv("USE_OLLAMA", "false").strip().lower() in ("1", "true", "yes")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "30"))
 GROQ_API_KEY = os.getenv("LOCAL_AI_GROQ_KEY", "") or os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+
+UNAVAILABLE_MESSAGE = {
+    "arabic": "الخدمة غير متوفرة حالياً. يرجى المحاولة مرة أخرى بعد قليل.",
+    "turkish": "Hizmet şu anda kullanılamıyor. Lütfen kısa süre sonra tekrar deneyin.",
+    "english": "Service unavailable. Please try again shortly.",
+}
 
 
 def _call_groq(prompt: str, system: Optional[str] = None) -> str:
@@ -52,19 +62,43 @@ def _call_ollama(prompt: str, system: Optional[str] = None) -> str:
         return (data.get("response") or "").strip()
 
 
-def _generate(prompt: str, system: Optional[str] = None) -> str:
-    """Try Ollama first; fall back to Groq if available."""
-    try:
-        return _call_ollama(prompt, system=system)
-    except Exception as ollama_err:
-        logger.warning("Ollama unavailable (%s), trying Groq.", ollama_err)
-        if GROQ_API_KEY:
-            try:
-                return _call_groq(prompt, system=system)
-            except Exception as groq_err:
-                logger.exception("Groq call failed: %s", groq_err)
-                raise RuntimeError("AI service unavailable. Please try again later.") from groq_err
-        raise RuntimeError("Service unavailable: run ollama with " + OLLAMA_MODEL) from ollama_err
+def _call_gemini(prompt: str, system: Optional[str] = None) -> str:
+    """Call Gemini cloud API. Raises on failure."""
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+    return gemini_service.generate_chat(messages)
+
+
+def _generate(prompt: str, system: Optional[str] = None, language: str = "english") -> str:
+    """Production-first: try Groq, then Gemini. Ollama only if explicitly enabled (local dev)."""
+    last_err: Optional[Exception] = None
+
+    if GROQ_API_KEY:
+        try:
+            return _call_groq(prompt, system=system)
+        except Exception as groq_err:
+            logger.warning("Groq call failed (%s), trying next provider.", groq_err)
+            last_err = groq_err
+
+    if gemini_service.is_available():
+        try:
+            return _call_gemini(prompt, system=system)
+        except Exception as gemini_err:
+            logger.warning("Gemini call failed (%s), trying next provider.", gemini_err)
+            last_err = gemini_err
+
+    if USE_OLLAMA:
+        try:
+            return _call_ollama(prompt, system=system)
+        except Exception as ollama_err:
+            logger.warning("Ollama unavailable (%s).", ollama_err)
+            last_err = ollama_err
+
+    logger.error("All AI providers failed for local_ai_module: %s", last_err)
+    message = UNAVAILABLE_MESSAGE.get(language, UNAVAILABLE_MESSAGE["english"])
+    raise RuntimeError(message) from last_err
 
 
 # Day-of-week themes for "daily" feel (rotates so tips vary by day)
@@ -86,7 +120,11 @@ def get_health_tip(language: str = "english") -> str:
     day_name = now.strftime("%A")
     theme_index = now.weekday() % len(TIP_THEMES)
     theme = TIP_THEMES[theme_index]
-    lang_instruction = "Respond in Turkish." if language == "turkish" else "Respond in Arabic." if language == "arabic" else "Respond in English."
+    lang_instruction = (
+        "Respond in Turkish only, using Turkish script throughout." if language == "turkish"
+        else "Respond in Arabic only, using Arabic script (فصحى) throughout. Do not mix in any other language or script." if language == "arabic"
+        else "Respond in English."
+    )
     disclaimer = "Bu tıbbi bir tavsiye değildir." if language == "turkish" else "هذه ليست نصيحة طبية." if language == "arabic" else "This is not medical advice."
     system = (
         "You are a diabetes prevention and wellness advisor. "
@@ -100,7 +138,7 @@ def get_health_tip(language: str = "english") -> str:
         f"Generate one short, practical health tip for diabetes prevention or management. "
         f"Give one specific action. 2-3 sentences only. {lang_instruction}"
     )
-    return _generate(prompt, system=system)
+    return _generate(prompt, system=system, language=language)
 
 
 def answer_scenario(
@@ -110,8 +148,16 @@ def answer_scenario(
 ) -> str:
     """Scenario explorer: user's 'what if' + optional assessment context, one response."""
     if not (scenario or "").strip():
+        if language == "turkish":
+            return "Lütfen bir senaryo girin (örn. Şekerimi 20 puan düşürürsem ne olur?)."
+        if language == "arabic":
+            return "يرجى إدخال سيناريو (مثال: ماذا لو خفضت مستوى السكر لدي بمقدار 20؟)."
         return "Please enter a scenario (e.g. What if I lower my glucose by 20?)."
-    lang_instruction = "Respond in Turkish." if language == "turkish" else "Respond in Arabic." if language == "arabic" else "Respond in English."
+    lang_instruction = (
+        "Respond in Turkish only, using Turkish script throughout." if language == "turkish"
+        else "Respond in Arabic only, using Arabic script (فصحى) throughout. Do not mix in any other language or script." if language == "arabic"
+        else "Respond in English."
+    )
     context = ""
     if assessment:
         risk = assessment.get("risk_level") or assessment.get("risk_level_display", "unknown")
@@ -131,4 +177,4 @@ def answer_scenario(
         f"Reply in two parts only: (1) What might change (2) What could help. "
         f"{lang_instruction}"
     )
-    return _generate(prompt, system=system)
+    return _generate(prompt, system=system, language=language)

@@ -165,6 +165,7 @@ class SaveDietPlanRequest(BaseModel):
 class MealPhotoAnalyzeRequest(BaseModel):
     image_base64: str = Field(..., description="Base64-encoded meal image (optional data URL prefix)")
     save_to_log: bool = Field(False, description="If true and user logged in, save this meal to their log")
+    language: str = Field("english", description="Response language: english, arabic, or turkish")
 
 
 class MealPhotoAnalyzeResponse(BaseModel):
