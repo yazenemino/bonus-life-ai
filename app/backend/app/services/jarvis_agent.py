@@ -116,7 +116,7 @@ def _summarise_gemini(question: str, context: str, history: list, gemini_key: st
         import google.generativeai as genai
         genai.configure(api_key=gemini_key)
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
+            model_name=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
             system_instruction=_SYSTEM,
         )
         # Build conversation history

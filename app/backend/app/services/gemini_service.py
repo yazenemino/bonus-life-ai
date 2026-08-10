@@ -23,7 +23,9 @@ def _configure():
         import google.generativeai as genai
         genai.configure(api_key=key)
         _genai = genai
-        _model_name = (os.getenv("GEMINI_MODEL") or "gemini-2.5-pro").strip()
+        # Default to a flash model, not *-pro: the free tier's per-day quota for
+        # *-pro models is small enough to exhaust in normal use.
+        _model_name = (os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
         _model = genai.GenerativeModel(_model_name)
         logger.info("[OK] Gemini initialized with model: %s", _model_name)
     except Exception as e:
@@ -39,7 +41,7 @@ def is_available() -> bool:
 
 def get_model_name() -> str:
     _configure()
-    return _model_name or (os.getenv("GEMINI_MODEL") or "gemini-2.5-pro").strip()
+    return _model_name or (os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
 
 
 def generate_chat(messages: List[Dict[str, str]]) -> str:

@@ -122,6 +122,16 @@ def _extract_json_object(raw: str) -> Optional[dict]:
         return None
 
 
+def _stringify_field(value: Any) -> str:
+    """Coerce a JSON field to display text; models sometimes return a list of
+    strings for healthier_swaps instead of one string — join those naturally."""
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        return ", ".join(_stringify_field(v) for v in value if v).strip()
+    return str(value).strip()
+
+
 def _parse_text_fallback(raw: str, language: str) -> Dict[str, Any]:
     """Line-based heuristic parser used when the model doesn't return valid JSON."""
     meal_name = ""
@@ -172,9 +182,9 @@ def _parse_analysis_response(raw: str, language: str) -> Dict[str, Any]:
 
     data = _extract_json_object(raw)
     if data:
-        meal_name = str(data.get("meal_name") or "").strip()
-        carb_level_raw = str(data.get("carb_level") or "").strip()
-        healthier_swaps = str(data.get("healthier_swaps") or "").strip()
+        meal_name = _stringify_field(data.get("meal_name"))
+        carb_level_raw = _stringify_field(data.get("carb_level"))
+        healthier_swaps = _stringify_field(data.get("healthier_swaps"))
         if meal_name or healthier_swaps:
             return {
                 "meal_name": (meal_name or _STRINGS["unavailable"][_lang(language)]["meal_name"])[:255],
