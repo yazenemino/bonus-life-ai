@@ -10,6 +10,7 @@ COPY app/backend/data/ ./data/
 
 # Persistent DB lives at /dbdata (Railway volume); avatars at /app/static/avatars
 RUN mkdir -p /dbdata /app/static/avatars
+ENV DB_DIR=/dbdata
 
 EXPOSE 8001
 

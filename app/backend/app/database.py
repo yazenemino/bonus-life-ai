@@ -3,14 +3,23 @@ Database configuration - SQLite with SQLAlchemy.
 Authors: Muhammed Jalahej, Yazen Emino
 """
 
+import logging
 import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-DB_DIR = os.getenv("DB_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data"))
+logger = logging.getLogger(__name__)
+
+# /dbdata is the Railway volume mount point prepared by the Dockerfile (see its
+# "mkdir -p /dbdata" comment). Without an explicit DB_DIR/DATABASE_URL override, the
+# previous fallback resolved to /data — a path nothing ever mounts a volume at — so
+# every redeploy silently started from an empty container filesystem and wiped users.
+_LOCAL_DEV_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
+DB_DIR = os.getenv("DB_DIR") or ("/dbdata" if os.path.isdir("/dbdata") else _LOCAL_DEV_DIR)
 os.makedirs(DB_DIR, exist_ok=True)
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(DB_DIR, 'morelife.db')}")
+logger.info("[DB] Using DB_DIR=%s (DATABASE_URL=%s)", DB_DIR, DATABASE_URL)
 
 engine = create_engine(
     DATABASE_URL,

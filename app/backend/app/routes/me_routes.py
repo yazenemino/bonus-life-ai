@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, DB_DIR
 from app.db_models import User, Assessment, HeartAssessment, DietPlanRecord, Notification, BrainMriAnalysis, CKDAssessment
 from app.models import UserMeResponse, ProfileUpdateRequest, ChangePasswordRequest, SaveDietPlanRequest, TOTPVerifyRequest
 from app.auth import get_current_user, hash_password
@@ -33,8 +33,9 @@ def _safe_json(s):
     except Exception:
         return None
 
-# Directory for avatar uploads (relative to backend app root)
-UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "static" / "avatars"
+# Avatars live alongside the DB (same persistent volume in production) so uploads
+# survive redeploys instead of vanishing with the container filesystem.
+UPLOAD_DIR = Path(DB_DIR) / "avatars"
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 MAX_SIZE_MB = 5
 MAX_BYTES = MAX_SIZE_MB * 1024 * 1024

@@ -6,9 +6,11 @@ Authors: Muhammed Jalahej, Yazen Emino
 """
 
 import os
+import re
+import json
 import asyncio
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from app.services import gemini_service
 
@@ -54,6 +56,22 @@ _STRINGS = {
     },
 }
 
+# Keyword variants seen in real model output, used by the text-fallback parser.
+# Lines are stripped of markdown emphasis (**bold**, __bold__) before matching.
+# Named "val" group avoids miscounting when the label alternation gains nested optional groups.
+_MEAL_LABEL_RE = re.compile(
+    r"^(meal(\s*name)?|الوجبة|اسم\s*الوجبة|yemek(\s*adı)?)\s*[:：]\s*(?P<val>.+)$", re.IGNORECASE
+)
+_CARB_LABEL_RE = re.compile(
+    r"^(carb(s|\s*level)?|(ال)?كربوهيدرات|مستوى\s*الكربوهيدرات|karbonhidrat(\s*düzeyi)?)\s*[:：]\s*(?P<val>.+)$",
+    re.IGNORECASE,
+)
+_SWAPS_LABEL_RE = re.compile(
+    r"^(healthier\s*swaps?|alternatives?|suggestions?|(ال)?بدائل(\s*الصحية|\s*صحية)?|بديل|"
+    r"(daha\s*sağlıklı\s*)?alternatifler)\s*[:：]\s*(?P<val>.+)$",
+    re.IGNORECASE,
+)
+
 
 def _lang(language: str) -> str:
     return language if language in ("arabic", "turkish") else "english"
@@ -78,33 +96,58 @@ def _normalize_carb_level(text: str) -> str:
     return "medium"
 
 
-def _parse_analysis_response(raw: str, language: str) -> Dict[str, Any]:
-    """Extract meal_name, carb_level, healthier_swaps from LLM response."""
+def _extract_json_object(raw: str) -> Optional[dict]:
+    """Pull a JSON object out of a model response that may include markdown fences or stray text."""
+    text = (raw or "").strip()
+    if not text:
+        return None
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.lower().startswith("json"):
+            text = text[4:]
+        text = text.strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        return None
+    candidate = text[start : end + 1]
+    try:
+        return json.loads(candidate)
+    except (json.JSONDecodeError, ValueError):
+        pass
+    # Tolerate a common LLM slip: trailing comma before a closing brace/bracket.
+    try:
+        return json.loads(re.sub(r",\s*([}\]])", r"\1", candidate))
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
+def _parse_text_fallback(raw: str, language: str) -> Dict[str, Any]:
+    """Line-based heuristic parser used when the model doesn't return valid JSON."""
     meal_name = ""
     carb_level = "medium"
     healthier_swaps = ""
 
-    # Try structured lines: Meal: ... Carb: ... Swaps: ...
     for line in raw.split("\n"):
-        line = line.strip()
+        line = line.replace("**", "").replace("__", "").strip()
         if not line:
             continue
-        lower = line.lower()
-        if lower.startswith("meal:") or lower.startswith("meal name:") or "الوجبة" in line or "yemek" in lower:
-            candidate = line.split(":", 1)[-1].strip()
-            if candidate:
-                meal_name = candidate
-        elif ("carb" in lower or "كربوهيدرات" in line or "karbonhidrat" in lower) and ":" in line:
-            part = line.split(":", 1)[-1].strip().lower()
-            carb_level = _normalize_carb_level(part)
-        elif "swap" in lower or "alternative" in lower or "suggestion" in lower or "بدائل" in line or "بديل" in line or "alternatif" in lower:
-            candidate = line.split(":", 1)[-1].strip()
-            if candidate:
-                healthier_swaps = candidate
+        m = _MEAL_LABEL_RE.match(line)
+        if m:
+            meal_name = m.group("val").strip()
+            continue
+        m = _CARB_LABEL_RE.match(line)
+        if m:
+            carb_level = _normalize_carb_level(m.group("val"))
+            continue
+        m = _SWAPS_LABEL_RE.match(line)
+        if m:
+            healthier_swaps = m.group("val").strip()
+            continue
 
     if not healthier_swaps:
         for para in raw.split("\n\n"):
-            if "swap" in para.lower() or "healthier" in para.lower() or "بدائل" in para or "بديل" in para:
+            if _SWAPS_LABEL_RE.search(para) or "swap" in para.lower() or "بدائل" in para or "بديل" in para:
                 healthier_swaps = para.strip()[:500]
                 break
     if not healthier_swaps:
@@ -114,31 +157,59 @@ def _parse_analysis_response(raw: str, language: str) -> Dict[str, Any]:
 
     return {
         "meal_name": meal_name[:255],
-        "carb_level": _normalize_carb_level(carb_level) if carb_level != "medium" else carb_level,
+        "carb_level": carb_level,
         "healthier_swaps": healthier_swaps[:2000],
     }
+
+
+def _parse_analysis_response(raw: str, language: str) -> Dict[str, Any]:
+    """Extract meal_name, carb_level, healthier_swaps from the model's response.
+
+    Tries strict JSON first (what the prompt asks for); falls back to flexible
+    line-based matching for models/responses that don't comply.
+    """
+    logger.info("Meal photo raw model response (%s): %s", language, raw)
+
+    data = _extract_json_object(raw)
+    if data:
+        meal_name = str(data.get("meal_name") or "").strip()
+        carb_level_raw = str(data.get("carb_level") or "").strip()
+        healthier_swaps = str(data.get("healthier_swaps") or "").strip()
+        if meal_name or healthier_swaps:
+            return {
+                "meal_name": (meal_name or _STRINGS["unavailable"][_lang(language)]["meal_name"])[:255],
+                "carb_level": _normalize_carb_level(carb_level_raw),
+                "healthier_swaps": (healthier_swaps or _STRINGS["default_swaps"][_lang(language)])[:2000],
+            }
+        logger.warning("Meal photo JSON parsed but meal_name/healthier_swaps both empty; using text fallback")
+
+    return _parse_text_fallback(raw, language)
 
 
 def _build_prompt(language: str) -> str:
     if language == "arabic":
         return (
-            "انظر إلى صورة الوجبة هذه وأجب باللغة العربية فقط، بالتنسيق التالي بالضبط:\n"
-            "الوجبة: [اسم قصير للوجبة]\n"
-            "الكربوهيدرات: [منخفض / متوسط / مرتفع]\n"
-            "بدائل صحية: [2-3 اقتراحات قصيرة لبدائل مناسبة لمرضى السكري]"
+            "انظر إلى صورة الوجبة هذه. أجب بكائن JSON صالح فقط، بدون أي نص إضافي أو علامات Markdown أو ```، "
+            "بالتنسيق التالي بالضبط:\n"
+            '{"meal_name": "اسم قصير للوجبة بالعربية", "carb_level": "low أو medium أو high (بالإنجليزية فقط)", '
+            '"healthier_swaps": "2-3 اقتراحات قصيرة بالعربية لبدائل صحية مناسبة لمرضى السكري"}\n'
+            "اكتب قيمتي meal_name و healthier_swaps باللغة العربية الفصحى، واجعل قيمة carb_level كلمة إنجليزية واحدة فقط "
+            "من: low, medium, high."
         )
     if language == "turkish":
         return (
-            "Bu öğün fotoğrafına bak ve sadece Türkçe olarak, tam olarak şu formatta yanıt ver:\n"
-            "Yemek: [kısa yemek adı]\n"
-            "Karbonhidrat düzeyi: [düşük / orta / yüksek]\n"
-            "Daha sağlıklı alternatifler: [diyabet dostu 2-3 kısa öneri]"
+            "Bu öğün fotoğrafına bak. Sadece geçerli bir JSON nesnesiyle yanıt ver, ekstra metin veya Markdown/``` "
+            "kullanma, tam olarak şu formatta:\n"
+            '{"meal_name": "kısa yemek adı (Türkçe)", "carb_level": "low, medium veya high (İngilizce)", '
+            '"healthier_swaps": "diyabet dostu 2-3 kısa öneri (Türkçe)"}\n'
+            "meal_name ve healthier_swaps değerlerini Türkçe yaz; carb_level değeri sadece şu İngilizce "
+            "kelimelerden biri olsun: low, medium, high."
         )
     return (
-        "Look at this meal photo. Reply in exactly this format:\n"
-        "Meal: [short meal name]\n"
-        "Carb level: [low / medium / high]\n"
-        "Healthier swaps: [2-3 short suggestions for diabetes-friendly alternatives]"
+        "Look at this meal photo. Respond with ONLY a valid JSON object, no extra text and no markdown/```, "
+        "in exactly this format:\n"
+        '{"meal_name": "short meal name", "carb_level": "low, medium, or high", '
+        '"healthier_swaps": "2-3 short diabetes-friendly suggestions"}'
     )
 
 

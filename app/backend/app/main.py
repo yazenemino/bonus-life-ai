@@ -675,8 +675,10 @@ app.include_router(local_ai_routes.router, prefix="/api/v1/local-ai")  # Local L
 app.include_router(stripe_webhook.router, prefix="/api/v1")    # POST /api/v1/webhooks/stripe
 app.include_router(agent.router, prefix="/api/v1")             # POST /api/v1/agent (JARVIS)
 
-# Serve uploaded avatars at /avatars/
-_static_avatars = os.path.join(os.path.dirname(__file__), "..", "static", "avatars")
+# Serve uploaded avatars at /avatars/ (stored under DB_DIR so they share the same
+# persistent volume as the database and survive redeploys)
+from app.database import DB_DIR as _db_dir
+_static_avatars = os.path.join(_db_dir, "avatars")
 os.makedirs(_static_avatars, exist_ok=True)
 if os.path.isdir(_static_avatars):
     app.mount("/avatars", StaticFiles(directory=_static_avatars), name="avatars")
