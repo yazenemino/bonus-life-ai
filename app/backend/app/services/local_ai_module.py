@@ -128,6 +128,8 @@ def get_health_tip(language: str = "english") -> str:
     disclaimer = "Bu tıbbi bir tavsiye değildir." if language == "turkish" else "هذه ليست نصيحة طبية." if language == "arabic" else "This is not medical advice."
     system = (
         "You are a diabetes prevention and wellness advisor. "
+        f"CRITICAL LANGUAGE RULE: {lang_instruction} This rule overrides everything else — "
+        "never answer in English unless English was explicitly requested. "
         "Give exactly one concrete action the user can do today. "
         "Use 2-3 short sentences in simple language. "
         f"End with a single disclaimer: '{disclaimer}' "
@@ -167,7 +169,11 @@ def answer_scenario(
         else:
             context = f" User's last assessment: risk level = {risk}."
     system = (
-        "You are a diabetes educator. Answer in two short parts. "
+        "You are a diabetes educator. "
+        f"CRITICAL LANGUAGE RULE: {lang_instruction} This rule overrides everything else — "
+        "never answer in English unless English was explicitly requested. Part labels/headings "
+        "must also be written in that language, not English. "
+        "Answer in two short parts. "
         "Part 1: What might change (for their situation). "
         "Part 2: What could help (one or two practical steps). "
         "Use simple language, 3-4 sentences total. Do not add a disclaimer or 'medical advice' line."

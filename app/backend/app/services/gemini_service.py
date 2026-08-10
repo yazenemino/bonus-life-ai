@@ -91,6 +91,33 @@ def generate_text(prompt: str, temperature: float = 0.7) -> str:
         raise
 
 
+def _detect_mime_type(image_bytes: bytes) -> str:
+    """Sniff image format from magic bytes; default to jpeg if unrecognized."""
+    if image_bytes[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if image_bytes[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if image_bytes[:4] == b"RIFF" and image_bytes[8:12] == b"WEBP":
+        return "image/webp"
+    if image_bytes[:4] in (b"GIF8",):
+        return "image/gif"
+    return "image/jpeg"
+
+
+def _relaxed_safety_settings():
+    """Food photos are benign; relax over-eager safety blocking that can strip response.text."""
+    if not (hasattr(_genai, "types") and hasattr(_genai.types, "HarmCategory")):
+        return None
+    HarmCategory = _genai.types.HarmCategory
+    HarmBlockThreshold = _genai.types.HarmBlockThreshold
+    return {
+        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+    }
+
+
 def generate_vision(image_base64: str, prompt: str) -> str:
     """Analyze an image with a text prompt. image_base64: raw base64 string."""
     _configure()
@@ -98,14 +125,25 @@ def generate_vision(image_base64: str, prompt: str) -> str:
         raise RuntimeError("Gemini not configured")
     try:
         image_bytes = base64.b64decode(image_base64)
+        mime_type = _detect_mime_type(image_bytes)
         # Prefer SDK Part type; fallback to inline_data dict (data as bytes)
         image_part = None
         if hasattr(_genai, "types") and hasattr(_genai.types, "Part"):
-            image_part = _genai.types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
+            image_part = _genai.types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
         if image_part is None:
-            image_part = {"inline_data": {"mime_type": "image/jpeg", "data": image_bytes}}
-        response = _model.generate_content([prompt, image_part])
-        return (response.text or "").strip()
+            image_part = {"inline_data": {"mime_type": mime_type, "data": image_bytes}}
+        response = _model.generate_content(
+            [prompt, image_part], safety_settings=_relaxed_safety_settings()
+        )
+        candidates = getattr(response, "candidates", None) or []
+        if not candidates:
+            block_reason = getattr(getattr(response, "prompt_feedback", None), "block_reason", None)
+            raise RuntimeError(f"Gemini returned no candidates (block_reason={block_reason})")
+        try:
+            return (response.text or "").strip()
+        except Exception:
+            finish_reason = getattr(candidates[0], "finish_reason", None)
+            raise RuntimeError(f"Gemini response has no usable text (finish_reason={finish_reason})")
     except Exception as e:
         logger.exception("Gemini generate_vision failed: %s", e)
         raise

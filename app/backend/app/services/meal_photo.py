@@ -6,6 +6,7 @@ Authors: Muhammed Jalahej, Yazen Emino
 """
 
 import os
+import asyncio
 import logging
 from typing import Dict, Any
 
@@ -96,14 +97,14 @@ def _parse_analysis_response(raw: str, language: str) -> Dict[str, Any]:
         elif ("carb" in lower or "كربوهيدرات" in line or "karbonhidrat" in lower) and ":" in line:
             part = line.split(":", 1)[-1].strip().lower()
             carb_level = _normalize_carb_level(part)
-        elif "swap" in lower or "alternative" in lower or "suggestion" in lower or "بديل" in line or "alternatif" in lower:
+        elif "swap" in lower or "alternative" in lower or "suggestion" in lower or "بدائل" in line or "بديل" in line or "alternatif" in lower:
             candidate = line.split(":", 1)[-1].strip()
             if candidate:
                 healthier_swaps = candidate
 
     if not healthier_swaps:
         for para in raw.split("\n\n"):
-            if "swap" in para.lower() or "healthier" in para.lower() or "بديل" in para:
+            if "swap" in para.lower() or "healthier" in para.lower() or "بدائل" in para or "بديل" in para:
                 healthier_swaps = para.strip()[:500]
                 break
     if not healthier_swaps:
@@ -202,7 +203,7 @@ async def analyze_meal_image(image_base64: str, language: str = "english") -> Di
                 return _fixed("api_error", language)
 
     try:
-        text = gemini_service.generate_vision(image_base64, prompt)
+        text = await asyncio.to_thread(gemini_service.generate_vision, image_base64, prompt)
         return _parse_analysis_response(text, language)
     except Exception as e:
         logger.exception("Meal photo analysis failed (Gemini): %s", e)

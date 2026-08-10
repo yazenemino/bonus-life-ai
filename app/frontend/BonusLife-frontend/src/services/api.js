@@ -49,13 +49,15 @@ async function apiRequest(endpoint, options = {}) {
       const isSymptomCheckerUnavailable = endpoint.includes('symptom-checker');
       if (!isLocalAIUnavailable && !isSymptomCheckerUnavailable && _maintenanceCb) _maintenanceCb();
       let message = 'HTTP 503: Platform is under maintenance';
-      if (isLocalAIUnavailable) message = 'Service unavailable run llama3.2:3b';
-      else if (isSymptomCheckerUnavailable) {
+      if (isLocalAIUnavailable || isSymptomCheckerUnavailable) {
+        const fallback = isLocalAIUnavailable
+          ? 'Service unavailable. Please try again shortly.'
+          : 'Symptom checker is temporarily unavailable. Please try again.';
         try {
           const body = await response.json();
-          message = (body && typeof body.detail === 'string') ? body.detail : 'Symptom checker is temporarily unavailable. Please try again.';
+          message = (body && typeof body.detail === 'string') ? body.detail : fallback;
         } catch (_) {
-          message = 'Symptom checker is temporarily unavailable. Please try again.';
+          message = fallback;
         }
       }
       throw new Error(message);

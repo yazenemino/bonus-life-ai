@@ -59,7 +59,7 @@ const LocalAI = ({ language = 'english' }) => {
   const [searchParams] = useSearchParams();
   const section = searchParams.get('section');
   const isTr = language === 'turkish';
-  const lang = isTr ? 'turkish' : 'english';
+  const lang = language === 'turkish' || language === 'arabic' ? language : 'english';
 
   const [tip, setTip] = useState('');
   const [tipLoading, setTipLoading] = useState(false);
