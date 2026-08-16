@@ -98,7 +98,9 @@ async def brain_mri_analysis(
             "1. A narrative clinical interpretation of the result\n"
             "2. Specific recommended next steps tailored to these findings\n"
             "3. A one-sentence medical disclaimer emphasizing this is not a radiological report.\n"
-            "IMPORTANT: Do NOT use markdown bolding (like **text**) or asterisks. Output plain text paragraphs only."
+            "IMPORTANT: Do NOT use markdown bolding (like **text**) or asterisks. Output plain text paragraphs only. "
+            "This is a brain MRI / neurological screening ONLY — do not mention diabetes, heart disease, kidney "
+            "disease, diet, or any other unrelated condition."
         )
 
         executive_summary = (
@@ -106,7 +108,7 @@ async def brain_mri_analysis(
         )
         if _ai_specialist:
             try:
-                resp = await _ai_specialist.generate_medical_response(insights_prompt, language)
+                resp = await _ai_specialist.generate_medical_response(insights_prompt, language, domain="brain_mri")
                 if resp.get("success"):
                     executive_summary = resp["response"]
             except Exception as e:

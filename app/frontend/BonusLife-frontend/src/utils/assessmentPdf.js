@@ -468,11 +468,91 @@ export async function buildAndDownloadSignedCKDPDF(assessment, user, isTr, apiSe
 }
 
 /**
+ * Detect Arabic-script characters. pdf-lib's built-in StandardFonts (WinAnsi encoding)
+ * cannot represent or shape Arabic glyphs, so text containing them must be rasterized
+ * (see rasterizeRtlText) instead of drawn with page.drawText.
+ */
+function containsArabic(str) {
+  return /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/.test(str || '');
+}
+
+/**
+ * Render RTL/Arabic text to a PNG via an offscreen canvas, using the browser's native
+ * text engine for correct Arabic letter joining and right-to-left ordering (pdf-lib has
+ * no complex text shaping of its own). Returns a PNG data URL plus its size in PDF points.
+ */
+function rasterizeRtlText(text, { maxWidthPt, fontSizePt = 10, lineHeightPt = 14, color = '#4d4d4d', scale = 3 }) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const fontFamily = "'Segoe UI', Tahoma, Arial, sans-serif";
+  const fontPx = fontSizePt * scale;
+  const maxWidthPx = maxWidthPt * scale;
+  ctx.font = `${fontPx}px ${fontFamily}`;
+
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (current && ctx.measureText(candidate).width > maxWidthPx) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+  if (lines.length === 0) return null;
+
+  const lineHeightPx = lineHeightPt * scale;
+  const paddingPx = 4 * scale;
+  canvas.width = Math.ceil(maxWidthPx) + paddingPx * 2;
+  canvas.height = Math.ceil(lines.length * lineHeightPx) + paddingPx * 2;
+
+  // Resizing the canvas resets its 2D context state, so re-apply settings.
+  ctx.font = `${fontPx}px ${fontFamily}`;
+  ctx.fillStyle = color;
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'alphabetic';
+  lines.forEach((line, i) => {
+    ctx.fillText(line, canvas.width - paddingPx, paddingPx + (i + 1) * lineHeightPx - lineHeightPx * 0.3);
+  });
+
+  return {
+    dataUrl: canvas.toDataURL('image/png'),
+    widthPt: canvas.width / scale,
+    heightPt: canvas.height / scale,
+  };
+}
+
+/**
+ * Draw a block of text at (x, y), automatically rasterizing it instead when it contains
+ * Arabic script (see rasterizeRtlText). Returns the new y cursor position.
+ */
+async function drawDirectionAwareText(doc, page, text, { x, y, maxWidth, font, fontSize = 10, lineHeight = 12, charsPerLine = 72, pdfColor, cssColor = '#4d4d4d' }) {
+  if (!text) return y;
+  if (containsArabic(text)) {
+    const rasterized = rasterizeRtlText(text, { maxWidthPt: maxWidth, fontSizePt: fontSize, lineHeightPt: lineHeight, color: cssColor });
+    if (!rasterized) return y;
+    const base64 = rasterized.dataUrl.split(',')[1];
+    const pngBytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const pngImage = await doc.embedPng(pngBytes);
+    page.drawImage(pngImage, { x, y: y - rasterized.heightPt, width: rasterized.widthPt, height: rasterized.heightPt });
+    return y - rasterized.heightPt;
+  }
+  page.drawText(text, { x, y, font, size: fontSize, color: pdfColor, maxWidth, lineHeight, wordBreaks: [' '] });
+  return y - Math.max(1, Math.ceil(text.length / charsPerLine)) * lineHeight;
+}
+
+/**
  * Parse Brain MRI summary
  */
 export function parseMriSummaryForPdf(summary) {
   const raw = (summary || 'No summary available.').replace(/\*+/g, '');
-  const safe = toPdfSafeText(raw).slice(0, 2000);
+  // Arabic text must not go through toPdfSafeText — it strips all non-Latin-1 characters,
+  // which would blank out every Arabic word and leave only stray punctuation behind.
+  const safe = (containsArabic(raw) ? raw.replace(/\s+/g, ' ').trim() : toPdfSafeText(raw)).slice(0, 2000);
   // Just split by double newline as sections might not have predictable headers
   const parts = safe.split(/\n\s*\n/).filter(p => p.trim());
   return parts.map((content) => ({ title: null, content: content.trim() }));
@@ -499,24 +579,29 @@ export async function buildAndDownloadSignedMriPDF(assessment, user, isTr, apiSe
   y -= 18;
   page.drawText(`Patient: ${toPdfSafeText(user?.full_name || user?.email || 'N/A')}`, { x: 50, y, font, size: 11, color: rgb(0.2, 0.2, 0.2) });
   y -= 18;
-  page.drawText(`AI Classification: ${toPdfSafeText(assessment.tumor_class || 'Unknown')}  |  Confidence: ${assessment.confidence ? ((assessment.confidence || 0) * 100).toFixed(1) + '%' : 'N/A'}`, { x: 50, y, font, size: 11, color: rgb(0.2, 0.2, 0.2) });
+  // risk_analysis is the raw shape returned by POST /brain-mri-analysis; top-level
+  // tumor_class/confidence is the flattened shape used when viewing a saved assessment
+  // from the dashboard. Read both so classification/confidence never silently fall back
+  // to "Unknown"/"N/A" just because one code path was used instead of the other.
+  const tumorClass = assessment.tumor_class ?? assessment.risk_analysis?.tumor_class;
+  const confidence = assessment.confidence ?? assessment.risk_analysis?.confidence;
+  page.drawText(`AI Classification: ${toPdfSafeText(tumorClass || 'Unknown')}  |  Confidence: ${confidence != null ? (confidence * 100).toFixed(1) + '%' : 'N/A'}`, { x: 50, y, font, size: 11, color: rgb(0.2, 0.2, 0.2) });
   y -= 24;
 
   const leftMargin = 50;
   const rightMargin = 70;
   const maxW = width - leftMargin - rightMargin;
   const lineH = 12;
-  const charsPerLine = 72;
-  const wordBreaks = [' '];
-  const normalText = { font, size: 10, color: rgb(0.3, 0.3, 0.3) };
-  
+  const normalTextColor = rgb(0.3, 0.3, 0.3);
+
   const sections = parseMriSummaryForPdf(assessment.executive_summary);
   page.drawText('Clinical Summary:', { x: leftMargin, y, font: fontBold, size: 11, color: rgb(0.2, 0.2, 0.2) });
   y -= 14;
   for (const { content } of sections) {
     if (!content) continue;
-    page.drawText(content, { x: leftMargin, y, ...normalText, maxWidth: maxW, lineHeight: lineH, wordBreaks });
-    y -= Math.max(1, Math.ceil(content.length / charsPerLine)) * lineH;
+    y = await drawDirectionAwareText(doc, page, content, {
+      x: leftMargin, y, maxWidth: maxW, font, fontSize: 10, lineHeight: lineH, pdfColor: normalTextColor,
+    });
     y -= 6;
   }
   y -= 16;

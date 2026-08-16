@@ -72,27 +72,58 @@ class AIDiabetesSpecialist:
             logger.error("[ERROR] Invalid or missing Groq API key")
 
     # -- prompt -----------------------------------------------------------
-    def create_medical_prompt(self, message: str, language: str, user_context: Dict = None) -> str:
+    # Domain configs let generate_medical_response() serve non-diabetes callers
+    # (e.g. Brain MRI) without leaking the diabetes-specialist framing into their
+    # system prompt. "diabetes" remains the default so existing callers (chat,
+    # assessment) are unaffected.
+    _DOMAIN_CONFIG = {
+        "diabetes": {
+            "role": "an expert diabetes specialist and health advisor",
+            "scope": "diabetes prevention, management, and treatment",
+            "greeting_invite": "diabetes-related",
+            "requirements": (
+                "1. Provide medically accurate information about diabetes\n"
+                "2. Focus on prevention strategies and healthy lifestyle\n"
+                "3. Be specific and practical in recommendations\n"
+                "4. Use clear, understandable language\n"
+                "5. Include both immediate actions and long-term strategies\n"
+                "6. When discussing diet, consider cultural context and local foods\n"
+                "7. Always recommend consulting healthcare professionals for personal medical advice\n"
+            ),
+        },
+        "brain_mri": {
+            "role": "an expert neurology and neuroradiology advisor",
+            "scope": "brain MRI tumor screening results and neurological next steps",
+            "greeting_invite": "brain MRI-related",
+            "requirements": (
+                "1. Provide a medically accurate interpretation of the brain MRI classification result\n"
+                "2. Focus strictly on the neurological / neuro-oncological findings — do NOT mention "
+                "diabetes, cardiology, kidney disease, diet, or any unrelated condition\n"
+                "3. Be specific and practical about recommended next steps (e.g. specialist referral, "
+                "follow-up imaging)\n"
+                "4. Use clear, understandable language\n"
+                "5. Include both immediate actions and what to expect going forward\n"
+                "6. Always recommend consulting a neurologist or radiologist for a definitive diagnosis\n"
+            ),
+        },
+    }
+
+    def create_medical_prompt(self, message: str, language: str, user_context: Dict = None, domain: str = "diabetes") -> str:
+        cfg = self._DOMAIN_CONFIG.get(domain, self._DOMAIN_CONFIG["diabetes"])
         lang_directive = {
             "arabic": "Respond ONLY in Arabic (فصحى بسيطة وواضحة), regardless of the language of the question.",
             "turkish": "Respond ONLY in Turkish, regardless of the language of the question.",
         }.get(language, "Respond in English.")
         prompt = (
-            "You are Bonus Life AI, an expert diabetes specialist and health advisor. "
-            "Provide accurate, helpful medical information about diabetes prevention, management, and treatment.\n\n"
+            f"You are Bonus Life AI, {cfg['role']}. "
+            f"Provide accurate, helpful medical information about {cfg['scope']}.\n\n"
             f'USER QUESTION: "{message}"\n'
             f"LANGUAGE: {language}. {lang_directive}\n\n"
             "If the user's message is just a greeting (e.g. hi, hello, مرحبا, merhaba) and not a health "
-            "question, reply with a short, friendly greeting and invite them to ask a diabetes-related "
+            f"question, reply with a short, friendly greeting and invite them to ask a {cfg['greeting_invite']} "
             "question. Do NOT dump medical information (e.g. symptom lists) unless it was actually asked for.\n\n"
             "RESPONSE REQUIREMENTS:\n"
-            "1. Provide medically accurate information about diabetes\n"
-            "2. Focus on prevention strategies and healthy lifestyle\n"
-            "3. Be specific and practical in recommendations\n"
-            "4. Use clear, understandable language\n"
-            "5. Include both immediate actions and long-term strategies\n"
-            "6. When discussing diet, consider cultural context and local foods\n"
-            "7. Always recommend consulting healthcare professionals for personal medical advice\n\n"
+            f"{cfg['requirements']}\n"
             "FORMAT:\n"
             "- Start with a clear, empathetic response to the question\n"
             "- Provide structured, actionable advice\n"
@@ -104,9 +135,9 @@ class AIDiabetesSpecialist:
         return prompt
 
     # -- generate ---------------------------------------------------------
-    async def generate_medical_response(self, message: str, language: str = "english", user_id: str = "default") -> Dict[str, Any]:
+    async def generate_medical_response(self, message: str, language: str = "english", user_id: str = "default", domain: str = "diabetes") -> Dict[str, Any]:
         user_profile = self.get_user_profile(user_id)
-        system_prompt = self.create_medical_prompt(message, language, user_profile.get("user_context", {}))
+        system_prompt = self.create_medical_prompt(message, language, user_profile.get("user_context", {}), domain=domain)
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": message},
