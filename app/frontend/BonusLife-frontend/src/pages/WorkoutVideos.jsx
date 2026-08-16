@@ -26,11 +26,11 @@ const WorkoutVideos = ({ language = 'english' }) => {
   const fetchVideos = useCallback((refresh = null) => {
     setLoading(true);
     setError('');
-    getWorkoutVideos(goal, refresh)
+    getWorkoutVideos(goal, refresh, language)
       .then((res) => setVideos(Array.isArray(res?.videos) ? res.videos : []))
       .catch((err) => setError(err.message || (isAr ? 'تعذر تحميل الفيديوهات.' : isTr ? 'Videolar yüklenemedi.' : 'Failed to load videos.')))
       .finally(() => setLoading(false));
-  }, [goal, isTr, isAr]);
+  }, [goal, language, isTr, isAr]);
 
   useEffect(() => { fetchVideos(); }, [goal]);
 

@@ -120,8 +120,13 @@ def _relaxed_safety_settings():
     }
 
 
-def generate_vision(image_base64: str, prompt: str) -> str:
-    """Analyze an image with a text prompt. image_base64: raw base64 string."""
+def generate_vision(image_base64: str, prompt: str, response_json: bool = False) -> str:
+    """Analyze an image with a text prompt. image_base64: raw base64 string.
+
+    response_json: when True, forces Gemini's structured-output JSON mode so the reply is
+    always a parseable JSON string instead of free text that may include markdown fences
+    or get cut off mid-object.
+    """
     _configure()
     if not _model:
         raise RuntimeError("Gemini not configured")
@@ -134,8 +139,15 @@ def generate_vision(image_base64: str, prompt: str) -> str:
             image_part = _genai.types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
         if image_part is None:
             image_part = {"inline_data": {"mime_type": mime_type, "data": image_bytes}}
+        generation_config = None
+        if response_json and hasattr(_genai, "types") and hasattr(_genai.types, "GenerationConfig"):
+            generation_config = _genai.types.GenerationConfig(
+                response_mime_type="application/json", max_output_tokens=500,
+            )
         response = _model.generate_content(
-            [prompt, image_part], safety_settings=_relaxed_safety_settings()
+            [prompt, image_part],
+            safety_settings=_relaxed_safety_settings(),
+            generation_config=generation_config,
         )
         candidates = getattr(response, "candidates", None) or []
         if not candidates:

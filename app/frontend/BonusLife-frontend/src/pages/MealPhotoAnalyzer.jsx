@@ -134,7 +134,7 @@ export default function MealPhotoAnalyzer({ language }) {
           <button onClick={() => navigate(ROUTES.DASHBOARD)}
             className="flex items-center gap-2 mb-4 text-sm text-white/70 hover:text-white transition-colors group">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            Back to Dashboard
+            {isAr ? 'العودة إلى لوحة التحكم' : isTr ? 'Dashboard\'a Geri Dön' : 'Back to Dashboard'}
           </button>
         </div>
         <div className="w-full max-w-4xl flex flex-col sm:flex-row items-stretch sm:items-start gap-6">

@@ -27,6 +27,44 @@ GREETING_REPLY = {
     "english": "Hello! I'm your AI diabetes assistant. How can I help you today?",
 }
 
+# Injected into every medical system prompt. Overrides normal analysis when the user
+# describes symptoms that could be life-threatening: no medication suggestions, no
+# home remedies (the model previously hallucinated recommending Ibuprofen for a
+# described heart attack) — just an immediate, unambiguous instruction to call
+# emergency services.
+EMERGENCY_PROTOCOL = {
+    "arabic": (
+        "بروتوكول الطوارئ (أولوية قصوى): إذا وصف المستخدم أعراضاً قد تهدد الحياة "
+        "(مثل ألم شديد أو ضاغط في الصدر، صعوبة شديدة في التنفس، علامات سكتة دماغية، "
+        "نزيف حاد، فقدان الوعي، أو أفكار إيذاء النفس)، يجب عليك التوقف فوراً عن أي تحليل "
+        "أو نصيحة إضافية، وعدم اقتراح أو ذكر اسم أي دواء أو علاج منزلي مهما كان، وإخبار "
+        "المستخدم بوضوح وفوراً بالاتصال بخدمات الطوارئ (911 أو 112) أو التوجه إلى أقرب "
+        "قسم طوارئ الآن."
+    ),
+    "turkish": (
+        "ACİL DURUM PROTOKOLÜ (en yüksek öncelik): Kullanıcı hayatı tehdit edebilecek "
+        "belirtiler tarif ederse (örn. şiddetli/baskı hissi veren göğüs ağrısı, ciddi nefes "
+        "darlığı, inme belirtileri, ağır kanama, bilinç kaybı veya kendine zarar verme "
+        "düşünceleri), analiz veya tavsiye vermeyi HEMEN durdurmalısın, herhangi bir ilaç "
+        "veya ev çaresi önermemeli ya da adını anmamalısın ve kullanıcıya hemen acil "
+        "servisleri (112) araması veya en yakın acil servise gitmesi gerektiğini açıkça "
+        "söylemelisin."
+    ),
+    "english": (
+        "EMERGENCY PROTOCOL (highest priority): If the user describes potentially "
+        "life-threatening symptoms (e.g. severe or crushing chest pain, serious "
+        "difficulty breathing, signs of stroke, heavy bleeding, loss of consciousness, "
+        "or self-harm intent), you MUST immediately stop any further analysis or advice, "
+        "NOT suggest or name any medication or home remedy under any circumstances, and "
+        "clearly tell them to call emergency services (911/112) or go to the nearest "
+        "emergency room right now."
+    ),
+}
+
+
+def _emergency_protocol_for(language: str) -> str:
+    return EMERGENCY_PROTOCOL.get(language, EMERGENCY_PROTOCOL["english"])
+
 
 def _is_greeting(message: str, language: str) -> bool:
     text = (message or "").strip().lower()
@@ -106,6 +144,36 @@ class AIDiabetesSpecialist:
                 "6. Always recommend consulting a neurologist or radiologist for a definitive diagnosis\n"
             ),
         },
+        "heart": {
+            "role": "an expert cardiology advisor",
+            "scope": "heart disease risk, cardiovascular health, and next steps",
+            "greeting_invite": "heart health-related",
+            "requirements": (
+                "1. Provide a medically accurate interpretation of the cardiovascular risk result\n"
+                "2. Focus strictly on cardiology — do NOT mention diabetes, kidney disease, brain/neurological "
+                "conditions, or any unrelated condition\n"
+                "3. Be specific and practical about recommended next steps (e.g. cardiologist referral, "
+                "lifestyle changes, follow-up tests)\n"
+                "4. Use clear, understandable language\n"
+                "5. Include both immediate actions and long-term strategies\n"
+                "6. Always recommend consulting a cardiologist for a definitive diagnosis\n"
+            ),
+        },
+        "kidney": {
+            "role": "an expert nephrology advisor",
+            "scope": "chronic kidney disease (CKD) risk and next steps",
+            "greeting_invite": "kidney health-related",
+            "requirements": (
+                "1. Provide a medically accurate interpretation of the kidney disease risk result\n"
+                "2. Focus strictly on nephrology / kidney health — do NOT mention diabetes, cardiology, "
+                "brain/neurological conditions, or any unrelated condition\n"
+                "3. Be specific and practical about recommended next steps (e.g. nephrologist referral, "
+                "follow-up labs, lifestyle changes)\n"
+                "4. Use clear, understandable language\n"
+                "5. Include both immediate actions and long-term strategies\n"
+                "6. Always recommend consulting a nephrologist for a definitive diagnosis\n"
+            ),
+        },
     }
 
     def create_medical_prompt(self, message: str, language: str, user_context: Dict = None, domain: str = "diabetes") -> str:
@@ -122,6 +190,10 @@ class AIDiabetesSpecialist:
             "If the user's message is just a greeting (e.g. hi, hello, مرحبا, merhaba) and not a health "
             f"question, reply with a short, friendly greeting and invite them to ask a {cfg['greeting_invite']} "
             "question. Do NOT dump medical information (e.g. symptom lists) unless it was actually asked for.\n\n"
+            "If the user's question is on a different health topic than your specialty above, do NOT open "
+            "with an apology or refusal — just answer helpfully to the best of your general medical knowledge, "
+            "and only mention your specialty in passing if it's genuinely relevant.\n\n"
+            f"{_emergency_protocol_for(language)}\n\n"
             "RESPONSE REQUIREMENTS:\n"
             f"{cfg['requirements']}\n"
             "FORMAT:\n"
@@ -339,28 +411,36 @@ class GPTOSSDiabetesSpecialist:
                 assessment_block = "\n\nThe user has no stored assessment on file. If they ask about their assessment, suggest they complete one in the Assessment section."
         if language == "turkish":
             system_content = (
-                "Sen Bonus Life AI'ın diyabet konusunda uzman yapay zeka asistanısın. "
+                "Sen Bonus Life AI'ın genel sağlık konularında uzman yapay zeka asistanısın. "
+                "Kullanıcının diyabeti olduğunu varsaymadan, sorduğu her sağlık konusuna (kalp, beslenme, "
+                "uyku, zihinsel sağlık, genel tıbbi sorular dahil) yardımcı ol. "
                 "Tüm yanıtlarını Türkçe, tıbben doğru ve anlaşılır biçimde ver. "
-                "Diyabet önleme, belirtiler, tedavi ve yaşam tarzı hakkında ayrıntılı bilgi sun. "
-                "Önemli: Yanıtlarında bir yapay zeka asistanı olduğunu belirt."
+                "Önemli: Yanıtlarında bir yapay zeka asistanı olduğunu belirt.\n\n"
+                + _emergency_protocol_for(language)
                 + voice_instructions
                 + assessment_block
             )
         elif language == "arabic":
             system_content = (
-                "أنت Bonus Life AI، خبير متخصص في مرض السكري. "
+                "أنت Bonus Life AI، مساعد ذكاء اصطناعي عام في المجال الصحي. "
+                "لا تفترض أن المستخدم مصاب بالسكري — ساعده في أي موضوع صحي يسأل عنه (القلب، التغذية، "
+                "النوم، الصحة النفسية، أو أي سؤال طبي عام). "
                 "قدم معلومات دقيقة طبياً ومبنية على الأدلة باللغة العربية. "
                 "قدم نصائح عملية ومحددة. "
-                "اذكر دائماً أنك مساعد ذكاء اصطناعي."
+                "اذكر دائماً أنك مساعد ذكاء اصطناعي.\n\n"
+                + _emergency_protocol_for(language)
                 + voice_instructions
                 + assessment_block
             )
         else:
             system_content = (
-                "You are Bonus Life AI, an expert diabetes specialist. "
+                "You are Bonus Life AI, a general medical assistant. "
+                "Do not assume the user has diabetes — help with whatever health topic they ask about "
+                "(heart health, nutrition, sleep, mental health, or any general medical question). "
                 "Provide medically accurate, evidence-based information. "
                 "Give specific, actionable advice. "
-                "Always state that you are an AI assistant."
+                "Always state that you are an AI assistant.\n\n"
+                + _emergency_protocol_for(language)
                 + voice_instructions
                 + assessment_block
             )

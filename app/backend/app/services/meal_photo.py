@@ -237,9 +237,13 @@ async def _analyze_with_groq(image_base64: str, prompt: str, api_key: str) -> st
                 ],
             }
         ],
-        "max_tokens": 400,
+        # Only one token-limit param: sending both max_tokens and max_completion_tokens is
+        # redundant and the smaller one can silently truncate the JSON object mid-string,
+        # which is what was producing invalid JSON / "Analysis failed" results.
+        "max_completion_tokens": 500,
         "temperature": 0.3,
-        "max_completion_tokens": 1024,
+        # Force strict JSON so the response is always machine-parseable.
+        "response_format": {"type": "json_object"},
     }
     async with httpx.AsyncClient(timeout=25.0) as client:
         r = await client.post(
@@ -284,7 +288,7 @@ async def analyze_meal_image(image_base64: str, language: str = "english") -> Di
                 return _fixed("api_error", language)
 
     try:
-        text = await asyncio.to_thread(gemini_service.generate_vision, image_base64, prompt)
+        text = await asyncio.to_thread(gemini_service.generate_vision, image_base64, prompt, True)
         return _parse_analysis_response(text, language)
     except Exception as e:
         logger.exception("Meal photo analysis failed (Gemini): %s", e)

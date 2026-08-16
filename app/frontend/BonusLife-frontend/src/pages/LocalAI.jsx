@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { LiquidMetalButton } from '../components/ui/LiquidMetalButton';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Loader2, Sparkles, Sun, HelpCircle, ChevronDown, ChevronUp, Trash2, ArrowLeft } from 'lucide-react';
@@ -43,6 +44,14 @@ function loadScenarioHistory() {
 function saveScenarioHistory(list) {
   try { localStorage.setItem(SCENARIO_HISTORY_KEY, JSON.stringify(list.slice(0, SCENARIO_HISTORY_MAX))); } catch (_) {}
 }
+
+const mdComponents = {
+  p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+  strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+  ul: ({ children }) => <ul className="list-disc list-inside mb-1.5 space-y-0.5">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal list-inside mb-1.5 space-y-0.5">{children}</ol>,
+  li: ({ children }) => <li className="ml-1">{children}</li>,
+};
 
 function stripDisclaimer(text) {
   if (!text || typeof text !== 'string') return text;
@@ -200,9 +209,9 @@ const LocalAI = ({ language = 'english' }) => {
               </LiquidMetalButton>
 
               {tip && (
-                <div className="mt-5 p-4 rounded-xl text-gray-300 text-sm leading-relaxed whitespace-pre-wrap"
+                <div className="mt-5 p-4 rounded-xl text-gray-300 text-sm leading-relaxed"
                   style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                  {tip}
+                  <ReactMarkdown components={mdComponents}>{tip}</ReactMarkdown>
                 </div>
               )}
             </div>
@@ -236,9 +245,9 @@ const LocalAI = ({ language = 'english' }) => {
               </LiquidMetalButton>
 
               {scenarioResult && (
-                <div className="mt-5 p-4 rounded-xl text-gray-300 text-sm leading-relaxed whitespace-pre-wrap"
+                <div className="mt-5 p-4 rounded-xl text-gray-300 text-sm leading-relaxed"
                   style={{ background: 'rgba(124,58,237,0.07)', border: '1px solid rgba(124,58,237,0.18)', borderLeft: '3px solid #7C3AED' }}>
-                  {stripDisclaimer(scenarioResult)}
+                  <ReactMarkdown components={mdComponents}>{stripDisclaimer(scenarioResult)}</ReactMarkdown>
                 </div>
               )}
 
@@ -256,7 +265,9 @@ const LocalAI = ({ language = 'english' }) => {
                         <li key={idx} className="relative p-4 pr-12 rounded-xl text-sm"
                           style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
                           <p className="font-semibold mb-1.5" style={{ color: '#C4B5FD' }}>Q: {item.scenario}</p>
-                          <p className="text-gray-400 whitespace-pre-wrap">{stripDisclaimer(item.answer)}</p>
+                          <div className="text-gray-400 text-sm">
+                            <ReactMarkdown components={mdComponents}>{stripDisclaimer(item.answer)}</ReactMarkdown>
+                          </div>
                           <button type="button"
                             onClick={() => {
                               const next = scenarioHistory.filter((_, i) => i !== idx);

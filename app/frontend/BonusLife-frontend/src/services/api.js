@@ -170,8 +170,8 @@ export async function getChatTopics() {
   return apiRequest('/api/v1/health-topics');
 }
 
-export async function getWorkoutVideos(goal = 'beginner', refreshKey = null) {
-  const params = new URLSearchParams({ goal: goal.trim().toLowerCase().replace(/\s+/g, '_') });
+export async function getWorkoutVideos(goal = 'beginner', refreshKey = null, language = 'english') {
+  const params = new URLSearchParams({ goal: goal.trim().toLowerCase().replace(/\s+/g, '_'), language });
   if (refreshKey != null && refreshKey !== '') params.set('refresh_key', String(refreshKey));
   return apiRequest(`/api/v1/workout-videos?${params}`);
 }

@@ -14,7 +14,7 @@ from app.db_models import CKDAssessment
 from app.auth import get_current_user_optional
 from app.models import CKDAssessmentRequest, CKDAssessmentResponse
 from app.services.ai_specialist import AIDiabetesSpecialist
-from app.services.notification_service import create_notification
+from app.services.notification_service import create_notification, localized_notification
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -77,7 +77,7 @@ async def ckd_assessment(
             "Include 1–2 sentences on key CKD indicators and when to consult a nephrologist."
         )
         insights_response = await _ai_specialist.generate_medical_response(
-            insights_prompt, request.language
+            insights_prompt, request.language, domain="kidney"
         )
         llm_insights = (
             insights_response["response"]
@@ -145,12 +145,8 @@ async def ckd_assessment(
             )
             db.add(rec)
             db.commit()
-            create_notification(
-                db, current_user.id,
-                "CKD assessment complete",
-                "Your kidney disease risk assessment is ready. View it in your Dashboard.",
-                "success",
-            )
+            notif_title, notif_message = localized_notification("ckd_complete", request.language)
+            create_notification(db, current_user.id, notif_title, notif_message, "success")
         except Exception as db_err:
             logger.error(f"Failed to save CKD assessment to DB: {db_err}")
             db.rollback()

@@ -11,6 +11,7 @@ from typing import Optional
 import httpx
 
 from app.services import gemini_service
+from app.services.ai_specialist import _emergency_protocol_for
 
 logger = logging.getLogger(__name__)
 
@@ -127,17 +128,19 @@ def get_health_tip(language: str = "english") -> str:
     )
     disclaimer = "Bu tıbbi bir tavsiye değildir." if language == "turkish" else "هذه ليست نصيحة طبية." if language == "arabic" else "This is not medical advice."
     system = (
-        "You are a diabetes prevention and wellness advisor. "
+        "You are a general health and wellness advisor. "
         f"CRITICAL LANGUAGE RULE: {lang_instruction} This rule overrides everything else — "
         "never answer in English unless English was explicitly requested. "
         "Give exactly one concrete action the user can do today. "
-        "Use 2-3 short sentences in simple language. "
+        "The tip's theme for today is given below — stay on that theme; do NOT force an unrelated "
+        "connection to diabetes or any other specific condition unless the theme is actually about it. "
+        "Use 2-3 short sentences in simple language, plain text only (no markdown, no ** or #). "
         f"End with a single disclaimer: '{disclaimer}' "
         "Do not give medical advice or diagnoses."
     )
     prompt = (
         f"Today is {day_name}, {today}. Focus for this tip: {theme}. "
-        f"Generate one short, practical health tip for diabetes prevention or management. "
+        f"Generate one short, practical general health tip on this theme. "
         f"Give one specific action. 2-3 sentences only. {lang_instruction}"
     )
     return _generate(prompt, system=system, language=language)
@@ -169,14 +172,20 @@ def answer_scenario(
         else:
             context = f" User's last assessment: risk level = {risk}."
     system = (
-        "You are a diabetes educator. "
+        "You are a general health educator answering a 'what if' scenario question. "
         f"CRITICAL LANGUAGE RULE: {lang_instruction} This rule overrides everything else — "
         "never answer in English unless English was explicitly requested. Part labels/headings "
         "must also be written in that language, not English. "
         "Answer in two short parts. "
         "Part 1: What might change (for their situation). "
-        "Part 2: What could help (one or two practical steps). "
-        "Use simple language, 3-4 sentences total. Do not add a disclaimer or 'medical advice' line."
+        "Part 2: What could help (one or two practical, general lifestyle steps). "
+        "Use simple language, plain text only — no markdown, no ** or # or bullet symbols. "
+        "3-4 sentences total. Do not add a disclaimer or 'medical advice' line.\n\n"
+        "NEVER invent, name, or recommend a specific medication, drug, or supplement — "
+        "there is no verified drug database backing this feature, and naming one risks "
+        "giving fabricated (hallucinated) medical information. Speak only in terms of general "
+        "lifestyle, monitoring, and 'ask your doctor about medication options' — never a drug name.\n\n"
+        f"{_emergency_protocol_for(language)}"
     )
     prompt = (
         f"User asks: {scenario.strip()}.{context} "

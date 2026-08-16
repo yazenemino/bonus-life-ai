@@ -285,6 +285,7 @@ const getTtsUrl = () => `${getVoiceApiBase()}/api/v1/tts`;
 let _aiSpeaking = false;
 let _conversationHistory = []; // [{role, content}]
 let _aiSpeakingClearTimer = null;
+let _aiSpeakingWatchdogTimer = null; // failsafe — see _setAiSpeaking
 let _setSpeakingState = null; // set by component — drives the waveform UI
 let _currentAudio = null; // live Audio object so we can stop mid-sentence
 let _ttsAbortController = null; // AbortController for in-flight TTS fetch
@@ -292,7 +293,19 @@ let _ttsAbortController = null; // AbortController for in-flight TTS fetch
 function _setAiSpeaking(val) {
   _aiSpeaking = val;
   if (_aiSpeakingClearTimer) { clearTimeout(_aiSpeakingClearTimer); _aiSpeakingClearTimer = null; }
+  if (_aiSpeakingWatchdogTimer) { clearTimeout(_aiSpeakingWatchdogTimer); _aiSpeakingWatchdogTimer = null; }
   if (_setSpeakingState) _setSpeakingState(val);
+  if (val) {
+    // Safety net: browsers occasionally never fire onended/onerror for TTS audio or
+    // speechSynthesis utterances (known flakiness, e.g. rapid cancel()+speak()). Since
+    // recognition.onresult bails out early while _aiSpeaking is true, a stuck flag makes
+    // the widget look permanently "Listening…" while silently ignoring everything the
+    // user says. Force-clear after a generous timeout so the mic always recovers.
+    _aiSpeakingWatchdogTimer = setTimeout(() => {
+      _aiSpeakingWatchdogTimer = null;
+      if (_aiSpeaking) _setAiSpeaking(false);
+    }, 20000);
+  }
 }
 
 function stopCurrentSpeech() {
@@ -334,6 +347,9 @@ function speak(text, onStart) {
   if (_ttsAbortController) { try { _ttsAbortController.abort(); } catch (_) {} }
   _ttsAbortController = new AbortController();
   const signal = _ttsAbortController.signal;
+  // Guard against a hung network request (server down / stalled connection) — without
+  // this, fetch() can wait indefinitely, leaving loading/listening state stuck.
+  const ttsTimeoutId = setTimeout(() => { try { _ttsAbortController?.abort(); } catch (_) {} }, 15000);
   fetch(getTtsUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -341,6 +357,7 @@ function speak(text, onStart) {
     signal,
   })
     .then(res => {
+      clearTimeout(ttsTimeoutId);
       if (!res.ok) throw new Error(`TTS ${res.status}`);
       return res.blob();
     })
@@ -357,6 +374,7 @@ function speak(text, onStart) {
       audio.play().catch(() => { _currentAudio = null; _setAiSpeaking(false); _browserSpeak(str); });
     })
     .catch(err => {
+      clearTimeout(ttsTimeoutId);
       if (err?.name === 'AbortError') { if (onStart) onStart(); return; } // still reveal text on abort
       _browserSpeak(str, onStart);
     });

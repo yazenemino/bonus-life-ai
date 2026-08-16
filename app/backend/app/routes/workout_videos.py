@@ -87,10 +87,24 @@ def _shuffle_and_take(videos: list, seed: Optional[str], take: int = DISPLAY_COU
     return out[:take]
 
 
+# YouTube category ID 17 = "Sports" — restricts search away from music/entertainment videos.
+_SPORTS_CATEGORY_ID = "17"
+
+
+def _lang_code(language: Optional[str]) -> str:
+    lang = (language or "english").lower()
+    if "arabic" in lang or lang == "ar":
+        return "ar"
+    if "turkish" in lang or lang == "tr":
+        return "tr"
+    return "en"
+
+
 @router.get("")
 async def get_workout_videos(
     goal: str = Query(default="beginner", description="Workout goal: beginner, weight_loss, 10_min, low_impact, strength"),
     refresh_key: Optional[str] = Query(None, description="Pass a new value (e.g. timestamp) to get a different set of videos"),
+    language: str = Query(default="english", description="Preferred video language: english | arabic | turkish"),
     current_user: Optional[object] = Depends(get_current_user_optional),
 ):
     """
@@ -100,6 +114,7 @@ async def get_workout_videos(
     goal_key = goal.strip().lower().replace(" ", "_") if goal else "beginner"
     if goal_key not in VALID_GOALS:
         goal_key = "beginner"
+    lang_code = _lang_code(language)
 
     user_id = getattr(current_user, "id", None) if current_user else None
     seed = str(user_id) if user_id else None
@@ -110,7 +125,7 @@ async def get_workout_videos(
     api_key = os.getenv("YOUTUBE_API_KEY", "").strip()
     if api_key:
         try:
-            dynamic = await asyncio.to_thread(_fetch_from_youtube_api, api_key, goal_key)
+            dynamic = await asyncio.to_thread(_fetch_from_youtube_api, api_key, goal_key, lang_code)
             if dynamic:
                 videos = _shuffle_and_take(dynamic, seed)
                 return {"goal": goal_key, "videos": videos, "source": "youtube_api"}
@@ -122,8 +137,8 @@ async def get_workout_videos(
     return {"goal": goal_key, "videos": videos, "source": "curated"}
 
 
-def _fetch_from_youtube_api(api_key: str, goal_key: str) -> list | None:
-    """Optional: search YouTube Data API for workout videos. Returns list of {id, title, channel} or None."""
+def _fetch_from_youtube_api(api_key: str, goal_key: str, lang_code: str = "en") -> list | None:
+    """Search YouTube Data API for workout videos. Returns list of {id, title, channel} or None."""
     try:
         import httpx
         query_map = {
@@ -134,6 +149,16 @@ def _fetch_from_youtube_api(api_key: str, goal_key: str) -> list | None:
             "strength": "strength training workout",
         }
         q = query_map.get(goal_key, "workout")
+        # Bias the query itself toward language-matching fitness content — relevanceLanguage
+        # alone still lets unrelated (e.g. music) results from that locale through.
+        query_suffix = {
+            "ar": "تمارين رياضية باللغة العربية",
+            "tr": "Türkçe fitness egzersizleri",
+        }.get(lang_code)
+        if query_suffix:
+            q = f"{q} {query_suffix}"
+        region_code = {"ar": "SA", "tr": "TR"}.get(lang_code, "US")
+
         url = "https://www.googleapis.com/youtube/v3/search"
         params = {
             "part": "snippet",
@@ -142,6 +167,10 @@ def _fetch_from_youtube_api(api_key: str, goal_key: str) -> list | None:
             "maxResults": 12,
             "key": api_key,
             "videoEmbeddable": "true",
+            "videoSyndicated": "true",
+            "videoCategoryId": _SPORTS_CATEGORY_ID,
+            "relevanceLanguage": lang_code,
+            "regionCode": region_code,
             "safeSearch": "strict",
         }
         with httpx.Client(timeout=10) as client:

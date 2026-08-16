@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.db_models import BrainMriAnalysis
 from app.auth import get_current_user_optional
-from app.services.notification_service import create_notification
+from app.services.notification_service import create_notification, localized_notification
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -133,12 +133,8 @@ async def brain_mri_analysis(
             db.refresh(rec)
             db_id = rec.id
 
-            create_notification(
-                db, current_user.id,
-                "Brain MRI analysis complete",
-                "Your brain MRI analysis is ready. View results in your Dashboard.",
-                "success",
-            )
+            notif_title, notif_message = localized_notification("brain_mri_complete", language)
+            create_notification(db, current_user.id, notif_title, notif_message, "success")
 
         # Build risk_analysis for consistent response shape
         risk_analysis = {

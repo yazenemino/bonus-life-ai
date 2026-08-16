@@ -119,15 +119,45 @@ class ProductionMealPlanningService:
         return self._parse_llm_response(response)
 
     def _create_prompt(self, request, nutrition):
+        language = getattr(request, "language", "english") or "english"
+        lang_instruction = {
+            "arabic": (
+                "CRITICAL LANGUAGE RULE: Write the ENTIRE response — overview, every meal in the daily plan, "
+                "every grocery item, and every note — in Arabic (فصحى بسيطة وواضحة). Do not leave any part "
+                "in English. Section headers (OVERVIEW, DAILY_PLAN, GROCERY_LIST, IMPORTANT_NOTES) must stay "
+                "in English exactly as given so the response can be parsed, but everything else must be Arabic."
+            ),
+            "turkish": (
+                "CRITICAL LANGUAGE RULE: Write the ENTIRE response — overview, every meal in the daily plan, "
+                "every grocery item, and every note — in Turkish. Do not leave any part in English. Section "
+                "headers (OVERVIEW, DAILY_PLAN, GROCERY_LIST, IMPORTANT_NOTES) must stay in English exactly "
+                "as given so the response can be parsed, but everything else must be Turkish."
+            ),
+        }.get(language, "Write the entire response in English.")
+
+        exclusions = (request.allergies or "").strip()
+        exclusion_block = ""
+        if exclusions:
+            exclusion_block = (
+                f"\nHARD DIETARY EXCLUSIONS — the user cannot have: {exclusions}\n"
+                "These are NOT suggestions to mention in passing — they are hard constraints. Every meal in "
+                "DAILY_PLAN and every item in GROCERY_LIST must be built WITHOUT these ingredients from the "
+                "start; substitute a sensible alternative instead of just omitting the dish. Do not copy this "
+                "constraint list verbatim into IMPORTANT_NOTES as if that satisfies the requirement — the "
+                "meals themselves must already be free of these ingredients.\n"
+            )
+
         return (
             "Create a personalized diabetes-friendly meal plan.\n\n"
+            f"{lang_instruction}\n"
+            f"{exclusion_block}"
             f"USER PROFILE:\n"
             f"- {request.age} years old, {request.gender}\n"
             f"- {request.weight}kg, {request.height}cm\n"
             f"- Goal: {request.goals}\n"
             f"- Diet: {request.dietaryPreference}\n"
             f"- Health Conditions: {request.healthConditions}\n"
-            f"- Allergies: {request.allergies}\n"
+            f"- Allergies / exclusions: {request.allergies}\n"
             f"- Activity Level: {request.activityLevel}\n"
             f"- Daily Routine: {request.typicalDay}\n\n"
             f"NUTRITIONAL TARGETS:\n"
@@ -135,7 +165,7 @@ class ProductionMealPlanningService:
             f"- Protein: {nutrition['protein_grams']}g\n"
             f"- Carbs: {nutrition['carbs_grams']}g\n"
             f"- Fat: {nutrition['fat_grams']}g\n\n"
-            "Create a response with these 4 sections:\n"
+            "Create a response with these 4 sections (keep these exact English section headers):\n"
             "OVERVIEW: 2-3 sentence personalized overview focusing on diabetes management\n"
             "DAILY_PLAN: Specific meal ideas for breakfast, lunch, dinner, and snacks\n"
             "GROCERY_LIST: 8-10 essential grocery items\n"

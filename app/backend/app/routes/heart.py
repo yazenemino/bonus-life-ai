@@ -14,7 +14,7 @@ from app.db_models import HeartAssessment
 from app.auth import get_current_user_optional
 from app.models import HeartAssessmentRequest, HeartAssessmentResponse
 from app.services.ai_specialist import AIDiabetesSpecialist
-from app.services.notification_service import create_notification
+from app.services.notification_service import create_notification, localized_notification
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -65,7 +65,7 @@ async def heart_assessment(
             "Include 1–2 sentences on key factors and when to see a doctor."
         )
         insights_response = await _ai_specialist.generate_medical_response(
-            insights_prompt, request.language
+            insights_prompt, request.language, domain="heart"
         )
         llm_insights = (
             insights_response["response"]
@@ -118,12 +118,8 @@ async def heart_assessment(
             )
             db.add(rec)
             db.commit()
-            create_notification(
-                db, current_user.id,
-                "Heart assessment complete",
-                "Your heart risk assessment is ready. View it in your Dashboard.",
-                "success",
-            )
+            notif_title, notif_message = localized_notification("heart_complete", request.language)
+            create_notification(db, current_user.id, notif_title, notif_message, "success")
         except Exception as db_err:
             logger.error(f"Failed to save heart assessment to DB: {db_err}")
             db.rollback()

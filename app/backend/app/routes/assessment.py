@@ -13,7 +13,7 @@ from app.database import get_db
 from app.db_models import Assessment
 from app.auth import get_current_user_optional
 from app.models import DiabetesAssessmentRequest, AssessmentResponse
-from app.services.notification_service import create_notification
+from app.services.notification_service import create_notification, localized_notification
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -159,12 +159,8 @@ async def diabetes_assessment(
             )
             db.add(rec)
             db.commit()
-            create_notification(
-                db, current_user.id,
-                "Assessment complete",
-                "Your diabetes risk assessment is ready. View it in your Dashboard.",
-                "success",
-            )
+            notif_title, notif_message = localized_notification("assessment_complete", request.language)
+            create_notification(db, current_user.id, notif_title, notif_message, "success")
         except Exception as db_err:
             logger.error(f"Failed to save diabetes assessment to DB: {db_err}")
             db.rollback()

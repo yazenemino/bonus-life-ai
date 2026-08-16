@@ -61,7 +61,8 @@ const VoiceChat = ({ language = 'english' }) => {
     errNoSpeech: 'Konuşma algılanmadı. Tekrar deneyin veya sorunuzu yazın.',
     errNoUnderstand: 'Anlaşılamadı. Lütfen tekrar konuşun veya sorunuzu yazın.',
     errEmpty: 'Bir soru girin',
-    back: 'Kontrol Paneline Dön'
+    back: 'Kontrol Paneline Dön',
+    idleHint: 'Başlamak için mikrofona tıklayın', speakingHint: 'Şimdi konuşun…'
   } : language === 'arabic' ? {
     title: 'المساعد الصوتي', sub: 'تحدث براحتك عن صحتك بلهجتك الطبيعية',
     start: 'بدء التسجيل', stop: 'إيقاف', processing: 'جاري المعالجة',
@@ -70,7 +71,8 @@ const VoiceChat = ({ language = 'english' }) => {
     errNoSpeech: 'لم يتم التقاط أي صوت. جرب مرة أخرى أو اكتب سؤالك.',
     errNoUnderstand: 'لم أفهم ذلك. جرب كتابة سؤالك أو تحدث مرة أخرى.',
     errEmpty: 'أدخل سؤالاً',
-    back: 'العودة للوحة التحكم'
+    back: 'العودة للوحة التحكم',
+    idleHint: 'اضغط على الميكروفون للبدء', speakingHint: 'تحدث الآن…'
   } : {
     title: 'Voice Assistant', sub: 'Speak naturally about diabetes in your preferred language',
     start: 'Start Recording', stop: 'Stop', processing: 'Generating',
@@ -79,7 +81,8 @@ const VoiceChat = ({ language = 'english' }) => {
     errNoSpeech: 'No speech detected. Try again or type your question.',
     errNoUnderstand: 'Could not understand. Try typing your question or speak again.',
     errEmpty: 'Enter a question',
-    back: 'Back to Dashboard'
+    back: 'Back to Dashboard',
+    idleHint: 'Click the microphone to begin', speakingHint: 'Speak now…'
   };
 
   const startRecording = async () => {
@@ -203,7 +206,7 @@ const VoiceChat = ({ language = 'english' }) => {
                 <div className="text-center">
                   <p className="text-xl font-bold text-white">{isRecording ? t.stop : t.start}</p>
                   <p className="text-sm mt-1.5" style={{ color: 'rgba(147,197,253,0.5)' }}>
-                    {isRecording ? 'Speak now…' : 'Click the microphone to begin'}
+                    {isRecording ? t.speakingHint : t.idleHint}
                   </p>
                 </div>
 
