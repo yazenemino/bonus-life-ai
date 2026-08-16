@@ -65,6 +65,7 @@ export default function SymptomChecker({ language = 'english' }) {
         fever: parseInt(fever, 10), cough: parseInt(cough, 10), fatigue: parseInt(fatigue, 10),
         difficultyBreathing: parseInt(difficultyBreathing, 10), age: parseFloat(age), gender: parseInt(gender, 10),
         bloodPressure: parseInt(bloodPressure, 10), cholesterol: parseInt(cholesterol, 10),
+        language,
       });
       setPredictions(result.predictions || []);
     } catch (err) {

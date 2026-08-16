@@ -188,6 +188,7 @@ class SymptomCheckerRequest(BaseModel):
     gender: int = Field(..., ge=0, le=1, description="Gender (0=Female, 1=Male)")
     blood_pressure: int = Field(..., ge=0, le=1, description="Blood pressure (0=Normal/Low, 1=High)", alias="bloodPressure")
     cholesterol: int = Field(..., ge=0, le=1, description="Cholesterol (0=Normal/Low, 1=High)")
+    language: str = Field("english", description="Response language: english | arabic | turkish")
 
 
 class SymptomPredictionItem(BaseModel):

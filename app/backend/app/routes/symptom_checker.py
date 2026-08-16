@@ -25,6 +25,7 @@ async def symptom_checker_predict(request: SymptomCheckerRequest):
             blood_pressure=request.blood_pressure,
             cholesterol=request.cholesterol,
             top_k=3,
+            language=request.language,
         )
         predictions = [
             SymptomPredictionItem(
