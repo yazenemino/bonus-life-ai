@@ -68,7 +68,7 @@ async def brain_mri_analysis(
                 detail="Invalid or unreadable image file. Please upload a valid JPG or PNG.",
             )
 
-        result = _brain_mri_service.predict(image_bytes)
+        result = _brain_mri_service.predict(image_bytes, language)
 
         tumor_class = result.get("tumor_class", "unknown")
         confidence = result.get("confidence")

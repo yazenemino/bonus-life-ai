@@ -40,11 +40,34 @@ except ImportError:
 TUMOR_LABELS = ["no tumor", "glioma", "meningioma", "pituitary"]
 
 TUMOR_DESCRIPTIONS = {
-    "no tumor": "No tumor detected in the MRI scan.",
-    "glioma": "Glioma — a tumor originating from glial cells in the brain or spine.",
-    "meningioma": "Meningioma — typically a slow-growing tumor forming on the brain membranes.",
-    "pituitary": "Pituitary adenoma — a typically benign tumor of the pituitary gland.",
+    "en": {
+        "no tumor": "No tumor detected in the MRI scan.",
+        "glioma": "Glioma — a tumor originating from glial cells in the brain or spine.",
+        "meningioma": "Meningioma — typically a slow-growing tumor forming on the brain membranes.",
+        "pituitary": "Pituitary adenoma — a typically benign tumor of the pituitary gland.",
+    },
+    "ar": {
+        "no tumor": "لم يتم اكتشاف أي ورم في صورة الرنين المغناطيسي.",
+        "glioma": "ورم دبقي — ورم ينشأ من الخلايا الدبقية في الدماغ أو النخاع الشوكي.",
+        "meningioma": "ورم سحائي — عادة ما يكون ورمًا بطيء النمو يتكوّن على الأغشية المحيطة بالدماغ.",
+        "pituitary": "ورم الغدة النخامية — ورم حميد في الغالب يصيب الغدة النخامية.",
+    },
+    "tr": {
+        "no tumor": "MR taramasında tümör tespit edilmedi.",
+        "glioma": "Gliom — beyin veya omurilikteki glial hücrelerden kaynaklanan bir tümör.",
+        "meningioma": "Menenjiyom — genellikle beyin zarları üzerinde oluşan yavaş büyüyen bir tümör.",
+        "pituitary": "Hipofiz adenomu — hipofiz bezinin genellikle iyi huylu bir tümörü.",
+    },
 }
+
+
+def _description_lang(language: Optional[str]) -> str:
+    lang = (language or "english").lower()
+    if "arabic" in lang or lang == "ar":
+        return "ar"
+    if "turkish" in lang or lang == "tr":
+        return "tr"
+    return "en"
 
 TUMOR_SEVERITY = {
     "no tumor": "low",
@@ -130,15 +153,16 @@ class BrainMriService:
         """Pre-load model on startup."""
         _BrainModelSingleton.get()
 
-    def predict(self, image_bytes: bytes) -> Dict[str, Any]:
+    def predict(self, image_bytes: bytes, language: Optional[str] = "english") -> Dict[str, Any]:
         """
         Runs ResNet18 inference on the supplied MRI image.
         Returns tumor_class, confidence, all_probabilities.
         """
         model, device, loaded = _BrainModelSingleton.get()
+        desc_lang = _description_lang(language)
 
         if not loaded or model is None:
-            return self._unavailable_response()
+            return self._unavailable_response(desc_lang)
 
         if not PIL_AVAILABLE:
             raise RuntimeError("Pillow is required for image preprocessing")
@@ -165,7 +189,7 @@ class BrainMriService:
                 "tumor_class": tumor_class,
                 "confidence": round(confidence, 4),
                 "all_probabilities": all_probs,
-                "tumor_description": TUMOR_DESCRIPTIONS.get(tumor_class, ""),
+                "tumor_description": TUMOR_DESCRIPTIONS[desc_lang].get(tumor_class, ""),
                 "severity": TUMOR_SEVERITY.get(tumor_class, "moderate"),
                 "model_available": True,
             }
@@ -175,12 +199,17 @@ class BrainMriService:
             raise
 
     @staticmethod
-    def _unavailable_response() -> Dict[str, Any]:
+    def _unavailable_response(desc_lang: str = "en") -> Dict[str, Any]:
+        unavailable_msg = {
+            "en": "Model unavailable. Please ensure the model file is installed.",
+            "ar": "النموذج غير متاح. يرجى التأكد من تثبيت ملف النموذج.",
+            "tr": "Model kullanılamıyor. Lütfen model dosyasının kurulu olduğundan emin olun.",
+        }
         return {
             "tumor_class": "unavailable",
             "confidence": None,
             "all_probabilities": {label: None for label in TUMOR_LABELS},
-            "tumor_description": "Model unavailable. Please ensure the model file is installed.",
+            "tumor_description": unavailable_msg.get(desc_lang, unavailable_msg["en"]),
             "severity": "unknown",
             "model_available": False,
         }

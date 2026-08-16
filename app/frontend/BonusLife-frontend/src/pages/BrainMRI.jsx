@@ -96,7 +96,7 @@ export default function BrainMRI({ language }) {
     setLoading(true); setError(null); setResult(null);
     try {
       const form = new FormData();
-      form.append('image', file); form.append('language', 'english');
+      form.append('image', file); form.append('language', isAr ? 'arabic' : isTr ? 'turkish' : 'english');
       const token = await getStoredToken();
       const headers = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
