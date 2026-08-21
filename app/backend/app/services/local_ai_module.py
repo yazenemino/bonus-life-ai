@@ -20,7 +20,12 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "30"))
 GROQ_API_KEY = os.getenv("LOCAL_AI_GROQ_KEY", "") or os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+# llama-3.1-8b-instant is no longer served on this Groq account (every call 404s) —
+# same root cause already fixed in app.services.diet and app.services.ai_specialist.
+# GROQ_MODEL isn't set anywhere in .env, so this default was silently making every
+# call to this module fail on Groq and fall through to the Gemini provider below —
+# a wasted round trip on every request, not a visible bug, since Gemini covered it.
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
 UNAVAILABLE_MESSAGE = {
     "arabic": "الخدمة غير متوفرة حالياً. يرجى المحاولة مرة أخرى بعد قليل.",
@@ -39,7 +44,21 @@ def _call_groq(prompt: str, system: Optional[str] = None) -> str:
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
     }
-    payload = {"model": GROQ_MODEL, "messages": messages, "max_tokens": 300}
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": messages,
+        # gpt-oss models spend part of this budget on hidden "thinking" tokens before
+        # the visible reply — 300 was tuned for the old plain llama model and would
+        # likely exhaust itself on reasoning alone for gpt-oss, truncating the actual
+        # answer (the same failure mode already found and fixed for diet-plan/meal-
+        # photo generation elsewhere in this codebase).
+        "max_tokens": 1200,
+    }
+    if "gpt-oss" in GROQ_MODEL:
+        # Keeps the hidden reasoning chain short so more of the budget above goes to
+        # the actual reply. Gated to gpt-oss specifically — other Groq model families
+        # define reasoning_effort differently and can 400 on an unrecognized value.
+        payload["reasoning_effort"] = "low"
     with httpx.Client(timeout=30) as client:
         r = client.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
         r.raise_for_status()
@@ -174,13 +193,20 @@ def answer_scenario(
     system = (
         "You are a general health educator answering a 'what if' scenario question. "
         f"CRITICAL LANGUAGE RULE: {lang_instruction} This rule overrides everything else — "
-        "never answer in English unless English was explicitly requested. Part labels/headings "
-        "must also be written in that language, not English. "
-        "Answer in two short parts. "
-        "Part 1: What might change (for their situation). "
-        "Part 2: What could help (one or two practical, general lifestyle steps). "
-        "Use simple language, plain text only — no markdown, no ** or # or bullet symbols. "
-        "3-4 sentences total. Do not add a disclaimer or 'medical advice' line.\n\n"
+        "never answer in English unless English was explicitly requested. "
+        "Your answer should naturally cover two things as it flows: what might change for "
+        "their situation, and what could help (one or two practical, general lifestyle steps). "
+        "These are things to cover, not sections to label.\n\n"
+        "CRITICAL FORMATTING INSTRUCTION: DO NOT use any structural headers, section names, "
+        "lists, or labels in your response (e.g., COMPLETELY AVOID phrases like 'القسم الأول', "
+        "'القسم الثاني', 'الجزء الأول', 'أولاً', 'ثانياً', 'Part 1', 'Part One', 'First,', "
+        "'Second,', numbered points like '1.'/'2.', or any equivalent introducing a labeled "
+        "section in ANY language). You MUST write the entire response as a single, natural, "
+        "continuous conversational paragraph flowing smoothly from one idea to the next — no "
+        "headers, no bullet points, no numbering, no bold labels of any kind, in the response "
+        "language or any other. "
+        "Use simple language, plain text only — no markdown, no ** or #. "
+        "3-4 sentences total, as one paragraph. Do not add a disclaimer or 'medical advice' line.\n\n"
         "NEVER invent, name, or recommend a specific medication, drug, or supplement — "
         "there is no verified drug database backing this feature, and naming one risks "
         "giving fabricated (hallucinated) medical information. Speak only in terms of general "
@@ -189,7 +215,8 @@ def answer_scenario(
     )
     prompt = (
         f"User asks: {scenario.strip()}.{context} "
-        f"Reply in two parts only: (1) What might change (2) What could help. "
+        "Reply as a single flowing paragraph — no headers, no part labels, no numbering — that "
+        "naturally covers both what might change for their situation and what could help. "
         f"{lang_instruction}"
     )
     return _generate(prompt, system=system, language=language)
