@@ -142,6 +142,7 @@ class DietPlanRequest(BaseModel):
 
 
 class DietPlanResponse(BaseModel):
+    plan_name: str = ""
     overview: str
     daily_plan: str
     grocery_list: str
@@ -156,6 +157,7 @@ class SaveDietPlanRequest(BaseModel):
     """Save an existing plan to the user's account (e.g. from mobile after viewing)."""
     goal: str = ""
     overview: str = ""
+    language: str = "english"
     payload: Dict[str, Any] = Field(..., description="Full plan object (overview, daily_plan, etc.)")
 
 

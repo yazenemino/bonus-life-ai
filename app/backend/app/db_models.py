@@ -161,6 +161,7 @@ class DietPlanRecord(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     goal = Column(String(128), default="")
+    plan_name = Column(String(255), default="")
     overview = Column(Text, default="")
     payload = Column(Text)  # JSON string of full response
     created_at = Column(DateTime, default=datetime.utcnow)

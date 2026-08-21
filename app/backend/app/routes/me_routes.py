@@ -19,6 +19,7 @@ from app.db_models import User, Assessment, HeartAssessment, DietPlanRecord, Not
 from app.models import UserMeResponse, ProfileUpdateRequest, ChangePasswordRequest, SaveDietPlanRequest, TOTPVerifyRequest
 from app.auth import get_current_user, hash_password
 from app.services import stripe_service
+from app.services.diet import build_plan_name
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["users"])
@@ -214,6 +215,9 @@ async def my_diet_plans(
         {
             "id": r.id,
             "goal": r.goal,
+            # Older rows saved before plan_name existed fall back to a name built
+            # from the stored goal, so the list never shows the raw enum value.
+            "plan_name": r.plan_name or build_plan_name(r.goal),
             "overview": r.overview,
             "payload": _safe_json(r.payload),
             "created_at": r.created_at.isoformat() if r.created_at else None,
@@ -233,9 +237,14 @@ async def save_diet_plan(
     goal = (body.goal or (body.payload.get("goals") if isinstance(body.payload, dict) else "")) or ""
     if isinstance(goal, str):
         goal = goal[:128]
+    plan_name = (
+        (body.payload.get("plan_name") if isinstance(body.payload, dict) else "")
+        or build_plan_name(goal, body.language)
+    )[:255]
     rec = DietPlanRecord(
         user_id=user.id,
         goal=goal,
+        plan_name=plan_name,
         overview=overview,
         payload=json.dumps(body.payload) if body.payload else None,
     )
@@ -288,6 +297,7 @@ async def export_my_data(
             {
                 "id": d.id,
                 "goal": d.goal,
+                "plan_name": d.plan_name or build_plan_name(d.goal),
                 "overview": d.overview,
                 "payload": _safe_json(d.payload),
                 "created_at": d.created_at.isoformat() if d.created_at else None,

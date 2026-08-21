@@ -1595,7 +1595,7 @@ export default function Dashboard({ language }) {
                   <li key={d.id} className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] border-l-4 border-l-violet-500/50 hover:border-violet-500/30 transition">
                     <div className="flex justify-between items-start gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-white">{dietGoalDisplay(d.goal, isAr, isTr)}</p>
+                        <p className="font-medium text-white">{d.plan_name || dietGoalDisplay(d.goal, isAr, isTr)}</p>
                         <p className="text-sm text-gray-400 line-clamp-2 mt-1">{d.overview}</p>
                         {d.created_at && (
                           <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">

@@ -24,6 +24,10 @@ const LOCAL_AI_TIMEOUT_MS = 60000;
  * with a Groq->Gemini fallback chain (up to ~25s per provider); give meal-photo more room
  * so a slow-but-successful analysis isn't aborted client-side before the backend responds. */
 const MEAL_PHOTO_TIMEOUT_MS = 45000;
+/** Backend's diet-plan LLM call budget is 20s before it falls back to a template; give the
+ * request enough room to actually get the real (localized) LLM result instead of racing it
+ * and aborting client-side right before the backend would have responded. */
+const DIET_PLAN_TIMEOUT_MS = 30000;
 
 async function apiRequest(endpoint, options = {}) {
   const token = getStoredToken();
@@ -36,6 +40,7 @@ async function apiRequest(endpoint, options = {}) {
   const timeoutMs = options.timeoutMs ?? (
     endpoint.startsWith('/api/v1/local-ai') ? LOCAL_AI_TIMEOUT_MS
     : endpoint.startsWith('/api/v1/meal-photo/analyze') ? MEAL_PHOTO_TIMEOUT_MS
+    : endpoint.startsWith('/api/v1/diet-plan/generate') ? DIET_PLAN_TIMEOUT_MS
     : REQUEST_TIMEOUT_MS
   );
   const controller = new AbortController();

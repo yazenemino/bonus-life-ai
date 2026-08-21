@@ -6,8 +6,11 @@ import { ROUTES } from '../config/constants';
 const DIET_GOAL_LABELS = {
   en: { diabetes_prevention: 'Diabetes Prevention', blood_sugar_control: 'Blood Sugar Control', weight_loss: 'Weight Loss', weight_gain: 'Weight Gain', maintenance: 'Maintenance', gestational_diabetes: 'Gestational Diabetes' },
   tr: { diabetes_prevention: 'Diyabet Önleme', blood_sugar_control: 'Kan Şekeri Kontrolü', weight_loss: 'Kilo Verme', weight_gain: 'Kilo Alma', maintenance: 'Koruma', gestational_diabetes: 'Gestasyonel Diyabet' },
+  ar: { diabetes_prevention: 'الوقاية من السكري', blood_sugar_control: 'التحكم في سكر الدم', weight_loss: 'إنقاص الوزن', weight_gain: 'زيادة الوزن', maintenance: 'المحافظة على الوزن', gestational_diabetes: 'سكري الحمل' },
 };
-const dietGoalDisplay = (goal, isTr) => (DIET_GOAL_LABELS[isAr ? 'en' : isTr ? 'tr' : 'en'][goal] || (goal || '').replace(/_/g, ' ')) || (isAr ? 'خطة النظام الغذائي' : isTr ? 'Diyet planı' : 'Diet plan');
+// isAr/isTr must be passed in — this runs at module scope, outside the component,
+// so it cannot close over the component's local language flags.
+const dietGoalDisplay = (goal, isAr, isTr) => (DIET_GOAL_LABELS[isAr ? 'ar' : isTr ? 'tr' : 'en'][goal] || (goal || '').replace(/_/g, ' ')) || (isAr ? 'خطة النظام الغذائي' : isTr ? 'Diyet planı' : 'Diet plan');
 
 const formatTime = (dateStr) => {
   if (!dateStr) return '';
@@ -62,7 +65,7 @@ export default function DietPlanReportPage({ language }) {
           <div className="w-11 h-11 rounded-xl bg-violet-500/10 flex items-center justify-center">
             <Salad className="w-5 h-5 text-violet-400" />
           </div>
-          <h1 className="text-lg font-semibold text-white">{dietGoalDisplay(dietPlan.goal, isTr)}</h1>
+          <h1 className="text-lg font-semibold text-white">{dietPlan.plan_name || dietGoalDisplay(dietPlan.goal, isAr, isTr)}</h1>
         </div>
 
         <div className="space-y-4">

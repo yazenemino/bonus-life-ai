@@ -40,6 +40,7 @@ async def generate_diet_plan(
             rec = DietPlanRecord(
                 user_id=current_user.id,
                 goal=request.goals or "",
+                plan_name=result.get("plan_name", "")[:255],
                 overview=result.get("overview", "")[:4096],
                 payload=json.dumps(result),
             )

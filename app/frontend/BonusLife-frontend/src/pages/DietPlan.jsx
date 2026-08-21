@@ -300,7 +300,7 @@ const DietPlan = ({ language = 'english' }) => {
             </LiquidMetalButton>
             {savedPlans.length > 0 && (
               <button onClick={() => setShowSaved(!showSaved)} className="btn-ghost text-sm">
-                <RotateCcw className="w-4 h-4" /> {isTr ? 'Kayıtlı Planlar' : 'Saved Plans'} ({savedPlans.length})
+                <RotateCcw className="w-4 h-4" /> {isAr ? 'الخطط المحفوظة' : isTr ? 'Kayıtlı Planlar' : 'Saved Plans'} ({savedPlans.length})
               </button>
             )}
           </div>
@@ -311,12 +311,14 @@ const DietPlan = ({ language = 'english' }) => {
       {showSaved && savedPlans.length > 0 && (
         <div className="gradient-border mt-6 animate-fade-in-up">
           <div className="card p-6 rounded-[1.25rem]">
-            <h3 className="text-lg font-bold text-white mb-4">{isTr ? 'Kayıtlı Planlarım' : 'My Saved Plans'}</h3>
+            <h3 className="text-lg font-bold text-white mb-4">{isAr ? 'الخطط المحفوظة' : isTr ? 'Kayıtlı Planlarım' : 'My Saved Plans'}</h3>
             <ul className="space-y-3">
               {savedPlans.map((plan) => (
                 <li key={plan.id} className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-white">{plan.goal || (isTr ? 'Diyet planı' : 'Diet plan')}</p>
+                    <p className="text-sm font-medium text-white">
+                      {plan.plan_name || t.goalDisplay[plan.goal] || plan.goal || (isAr ? 'خطة غذائية' : isTr ? 'Diyet planı' : 'Diet plan')}
+                    </p>
                     <p className="text-xs text-gray-500 truncate">{plan.overview?.slice(0, 80)}...</p>
                     {plan.created_at && <p className="text-[10px] text-gray-600 mt-0.5">{new Date(plan.created_at).toLocaleDateString()}</p>}
                   </div>
@@ -329,7 +331,7 @@ const DietPlan = ({ language = 'english' }) => {
                     }}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border border-violet-500/20 transition shrink-0 ml-3"
                   >
-                    {isTr ? 'Tekrar Kullan' : 'Use Again'}
+                    {isAr ? 'استخدام مرة أخرى' : isTr ? 'Tekrar Kullan' : 'Use Again'}
                   </button>
                 </li>
               ))}

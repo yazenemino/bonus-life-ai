@@ -414,6 +414,7 @@ try:
             "ALTER TABLE heart_assessments ADD COLUMN admin_hidden INTEGER DEFAULT 0",
             "ALTER TABLE brain_mri_analyses ADD COLUMN admin_hidden INTEGER DEFAULT 0",
             "ALTER TABLE diet_plan_records ADD COLUMN admin_hidden INTEGER DEFAULT 0",
+            "ALTER TABLE diet_plan_records ADD COLUMN plan_name VARCHAR(255) DEFAULT ''",
             "ALTER TABLE announcements ADD COLUMN expires_at DATETIME",
         ]:
             try:
