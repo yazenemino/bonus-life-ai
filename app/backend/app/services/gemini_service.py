@@ -142,7 +142,15 @@ def generate_vision(image_base64: str, prompt: str, response_json: bool = False)
         generation_config = None
         if response_json and hasattr(_genai, "types") and hasattr(_genai.types, "GenerationConfig"):
             generation_config = _genai.types.GenerationConfig(
-                response_mime_type="application/json", max_output_tokens=500,
+                response_mime_type="application/json",
+                # gemini-2.5-flash spends part of this budget on hidden "thinking"
+                # tokens before it emits any visible JSON, and this SDK version
+                # (google-generativeai 0.8.5) has no thinking_config/thinking_budget
+                # field to disable that — it 400s if you try to pass one. 500 was
+                # nowhere near enough: confirmed live that it truncated on every
+                # single call (finish_reason=MAX_TOKENS after 16-24 chars). 3000
+                # leaves real headroom for thinking + the actual JSON object.
+                max_output_tokens=3000,
             )
         response = _model.generate_content(
             [prompt, image_part],

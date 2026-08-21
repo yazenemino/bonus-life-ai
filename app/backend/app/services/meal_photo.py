@@ -16,7 +16,14 @@ from app.services import gemini_service
 
 logger = logging.getLogger(__name__)
 
-# Groq vision: use Llama 4 Scout (or Maverick). LLaVA was deprecated.
+# Groq vision: Llama 4 Scout (or Maverick) is the correct model family for image input
+# on Groq — LLaVA was deprecated. NOTE: verified live against GET /openai/v1/models
+# that this specific account's GROQ_API_KEY does not have this model (or any other
+# vision-capable model) in its accessible list — every call to it 404s with
+# model_not_found. That isn't a wrong model *name*; the account simply has no Groq
+# vision access right now, so this path is expected to fail until that changes and
+# Gemini (gemini_service.generate_vision, see below) carries meal-photo analysis.
+# Override via GROQ_VISION_MODEL if/when this account gets access to a working one.
 VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
 
 
@@ -202,6 +209,22 @@ def _parse_analysis_response(raw: str, language: str) -> Dict[str, Any]:
             }
         logger.warning("Meal photo JSON parsed but meal_name/healthier_swaps both empty; using text fallback")
 
+    stripped = (raw or "").strip()
+    if stripped.startswith("{") or stripped.startswith("```"):
+        # The model was clearly attempting a JSON object (or _extract_json_object
+        # would have succeeded above) but produced something unparseable — almost
+        # always a response truncated mid-object by a token-budget cutoff, not a
+        # genuine free-text answer. Handing this to the line-based text fallback is
+        # actively dangerous: e.g. a truncated '{"meal_name": "طبق جانبي' has no line
+        # matching the "meal_name:" label pattern, so the fallback's last-resort rule
+        # (first non-empty line becomes the meal name) adopts that raw JSON fragment
+        # as if it were a real answer. A clear error is far better than that garbage.
+        logger.error(
+            "VISION API ERROR: model response looked like truncated/invalid JSON, "
+            "not free text — refusing to text-parse it: %r", stripped[:200]
+        )
+        raise MealAnalysisError(502, _ERROR_STRINGS["api_error"][_lang(language)])
+
     return _parse_text_fallback(raw, language)
 
 
@@ -294,7 +317,15 @@ async def analyze_meal_image(image_base64: str, language: str = "english") -> Di
         except MealAnalysisError:
             raise
         except Exception as e:
-            logger.error("Groq vision analysis failed: %s", e)
+            # Log the exact raw provider error (status code, body) here — this is what
+            # tells you 404 model_not_found vs. 413 payload-too-large vs. a timeout,
+            # none of which look the same from the generic MealAnalysisError the user
+            # sees. Confirmed live against this account: VISION_MODEL
+            # (meta-llama/llama-4-scout-17b-16e-instruct) 404s every time — it is not
+            # in this Groq key's accessible model list (GET /openai/v1/models), and as
+            # of this fix there is no vision-capable model on this key at all, so this
+            # branch is expected to always fail here until that changes account-side.
+            logger.error("VISION API ERROR (Groq, model=%s): %s", VISION_MODEL, e)
             if not has_gemini:
                 raise MealAnalysisError(502, _ERROR_STRINGS["api_error"][_lang(language)]) from e
 
@@ -304,5 +335,5 @@ async def analyze_meal_image(image_base64: str, language: str = "english") -> Di
     except MealAnalysisError:
         raise
     except Exception as e:
-        logger.exception("Meal photo analysis failed (Gemini): %s", e)
+        logger.error("VISION API ERROR (Gemini, model=%s): %s", gemini_service.get_model_name(), e)
         raise MealAnalysisError(502, _ERROR_STRINGS["api_error"][_lang(language)]) from e
