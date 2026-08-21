@@ -15,6 +15,21 @@ from app.services import gemini_service
 
 logger = logging.getLogger(__name__)
 
+# llama-3.1-8b-instant is no longer served on this Groq account (every call 404s
+# "model does not exist") — confirmed live against GET /openai/v1/models, which does
+# not list it or any other llama-3.x model for this key. openai/gpt-oss-20b is
+# confirmed available and is the same default already used by app.services.diet for
+# the same reason. LLM_MODEL_NAME in the environment still wins when set — this is
+# only the fallback used when it's absent, so it also needs updating directly in
+# Railway's environment variables (not sourced from this repo's gitignored .env) for
+# a production fix to actually take effect.
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
+# Groq is either fast (a couple seconds) or fails fast (404/invalid model) — this is a
+# ceiling against a genuine network stall, not the expected latency. The frontend's own
+# fetch has a hard 30s AbortController (ChatBot.jsx); Groq (10s) + Gemini fallback (18s)
+# below leaves a ~2s buffer under that even in the worst case where both time out.
+GROQ_CHAT_TIMEOUT_S = 10.0
+
 GREETING_WORDS = {
     "arabic": ["مرحبا", "مرحباً", "أهلا", "أهلاً", "السلام عليكم", "صباح الخير", "مساء الخير", "هلا", "اهلين"],
     "turkish": ["merhaba", "selam", "günaydın", "iyi günler", "iyi akşamlar"],
@@ -74,12 +89,29 @@ def _is_greeting(message: str, language: str) -> bool:
     return any(text == w or text.startswith(w) for w in words)
 
 
+GEMINI_FALLBACK_TIMEOUT_S = 18.0  # measured live: a real chat reply took ~13s; 10s was cutting off working responses
+
+
 async def _try_gemini(messages: List[Dict[str, str]]) -> Optional[str]:
-    """Best-effort secondary provider. Returns None if Gemini isn't configured or fails."""
+    """Best-effort secondary provider. Returns None if Gemini isn't configured or fails.
+
+    Bounded with a timeout: neither the Groq SDK call above nor this one had any
+    explicit timeout, so a provider that stalls instead of erroring quickly could
+    block the request for a very long time with nothing surfaced to the user except
+    a spinner that never resolves — this is what was actually behind reports of chat
+    "hanging" (there is no streaming/SSE anywhere in this pipeline for a format
+    mismatch to break; both the primary and fallback paths already return the same
+    plain JSON shape, and the frontend does a single res.json() parse either way).
+    """
     if not gemini_service.is_available():
         return None
     try:
-        return await asyncio.to_thread(gemini_service.generate_chat, messages)
+        return await asyncio.wait_for(
+            asyncio.to_thread(gemini_service.generate_chat, messages), timeout=GEMINI_FALLBACK_TIMEOUT_S
+        )
+    except asyncio.TimeoutError:
+        logger.warning("Gemini fallback timed out after %.0fs", GEMINI_FALLBACK_TIMEOUT_S)
+        return None
     except Exception as e:
         logger.warning("Gemini fallback failed: %s", e)
         return None
@@ -100,7 +132,7 @@ class AIDiabetesSpecialist:
             groq_api_key = os.getenv("GROQ_API_KEY")
             if groq_api_key and groq_api_key.startswith("gsk_"):
                 self.client = Groq(api_key=groq_api_key)
-                model_name = os.getenv("LLM_MODEL_NAME", "llama-3.1-8b-instant")
+                model_name = os.getenv("LLM_MODEL_NAME", DEFAULT_GROQ_MODEL)
                 logger.info("[START] AI Diabetes Specialist LLM initialized with Groq model: %s", model_name)
                 return
         except Exception as e:
@@ -222,13 +254,16 @@ class AIDiabetesSpecialist:
             if not self.client:
                 raise RuntimeError("Groq client not configured")
 
-            model_name = os.getenv("LLM_MODEL_NAME", "llama-3.1-8b-instant")
-            response = await asyncio.to_thread(
-                self.client.chat.completions.create,
-                model=model_name,
-                messages=messages,
-                temperature=0.7,
-                max_tokens=1500,
+            model_name = os.getenv("LLM_MODEL_NAME", DEFAULT_GROQ_MODEL)
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.chat.completions.create,
+                    model=model_name,
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=1500,
+                ),
+                timeout=GROQ_CHAT_TIMEOUT_S,
             )
             llm_response = response.choices[0].message.content
 
@@ -328,7 +363,7 @@ class GPTOSSDiabetesSpecialist:
                 self.client = None
                 return
             self.client = Groq(api_key=groq_api_key)
-            model_name = os.getenv("LLM_MODEL_NAME", "llama-3.1-8b-instant")
+            model_name = os.getenv("LLM_MODEL_NAME", DEFAULT_GROQ_MODEL)
             test_response = self.client.chat.completions.create(
                 model=model_name,
                 messages=[{"role": "user", "content": "Say 'GPT-OSS-20B Diabetes Specialist Ready'"}],
@@ -469,11 +504,19 @@ class GPTOSSDiabetesSpecialist:
 
         if self.client:
             try:
-                model_name = os.getenv("LLM_MODEL_NAME", "llama-3.1-8b-instant")
+                model_name = os.getenv("LLM_MODEL_NAME", DEFAULT_GROQ_MODEL)
                 temperature = float(os.getenv("LLM_TEMPERATURE", 0.6))
                 max_tokens = 800 if is_voice else 1500
-                response = self.client.chat.completions.create(
-                    model=model_name, messages=msgs, temperature=temperature, max_tokens=max_tokens
+                # This was a bare synchronous SDK call inside an async def — it blocked
+                # FastAPI's whole event loop (every other in-flight request, not just
+                # this one) for as long as Groq took to respond, with no timeout at all.
+                # asyncio.to_thread offloads it; wait_for bounds it.
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self.client.chat.completions.create,
+                        model=model_name, messages=msgs, temperature=temperature, max_tokens=max_tokens,
+                    ),
+                    timeout=GROQ_CHAT_TIMEOUT_S,
                 )
                 llm_resp = response.choices[0].message.content
                 self.add_to_conversation(user_id, "assistant", llm_resp)
