@@ -25,7 +25,7 @@ def _configure():
         _genai = genai
         # Default to a flash model, not *-pro: the free tier's per-day quota for
         # *-pro models is small enough to exhaust in normal use.
-        _model_name = (os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
+        _model_name = (os.getenv("GEMINI_MODEL") or "gemini-3.6-flash").strip()
         _model = genai.GenerativeModel(_model_name)
         logger.info("[OK] Gemini initialized with model: %s", _model_name)
     except Exception as e:
@@ -41,7 +41,7 @@ def is_available() -> bool:
 
 def get_model_name() -> str:
     _configure()
-    return _model_name or (os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
+    return _model_name or (os.getenv("GEMINI_MODEL") or "gemini-3.6-flash").strip()
 
 
 def generate_chat(messages: List[Dict[str, str]]) -> str:
@@ -143,13 +143,15 @@ def generate_vision(image_base64: str, prompt: str, response_json: bool = False)
         if response_json and hasattr(_genai, "types") and hasattr(_genai.types, "GenerationConfig"):
             generation_config = _genai.types.GenerationConfig(
                 response_mime_type="application/json",
-                # gemini-2.5-flash spends part of this budget on hidden "thinking"
-                # tokens before it emits any visible JSON, and this SDK version
-                # (google-generativeai 0.8.5) has no thinking_config/thinking_budget
-                # field to disable that — it 400s if you try to pass one. 500 was
-                # nowhere near enough: confirmed live that it truncated on every
-                # single call (finish_reason=MAX_TOKENS after 16-24 chars). 3000
-                # leaves real headroom for thinking + the actual JSON object.
+                # The default Gemini flash model is a reasoning model that spends part
+                # of this budget on hidden "thinking" tokens before it emits any
+                # visible JSON, and this SDK version (google-generativeai 0.8.5) has no
+                # thinking_config/thinking_budget field to disable that — it 400s if
+                # you try to pass one. 500 was nowhere near enough for gemini-2.5-flash:
+                # confirmed live that it truncated on every single call
+                # (finish_reason=MAX_TOKENS after 16-24 chars). 3000 leaves real
+                # headroom for thinking + the actual JSON object — re-verified against
+                # gemini-3.6-flash (also a thinking model) with 5/5 clean runs.
                 max_output_tokens=3000,
             )
         response = _model.generate_content(
