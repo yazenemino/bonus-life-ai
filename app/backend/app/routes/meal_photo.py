@@ -11,7 +11,7 @@ from app.database import get_db
 from app.db_models import MealLog
 from app.auth import get_current_user_optional
 from app.models import MealPhotoAnalyzeRequest, MealPhotoAnalyzeResponse
-from app.services.meal_photo import analyze_meal_image
+from app.services.meal_photo import analyze_meal_image, MealAnalysisError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -32,6 +32,9 @@ async def analyze_meal(
     """Analyze a meal photo: identify meal, estimate carb level (low/medium/high), suggest healthier swaps. Optionally save to user's meal log."""
     try:
         result = await analyze_meal_image(request.image_base64, language=request.language)
+    except MealAnalysisError as e:
+        logger.warning(f"Meal analyze failed ({e.status_code}): {e.detail}")
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         logger.exception(f"Meal analyze failed: {e}")
         detail = (

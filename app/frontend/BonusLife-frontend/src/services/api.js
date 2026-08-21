@@ -20,6 +20,10 @@ export function onMaintenanceMode(cb) {
 const REQUEST_TIMEOUT_MS = 15000;
 /** Local AI (Ollama) can take 30–60s to generate; use longer timeout for /api/v1/local-ai */
 const LOCAL_AI_TIMEOUT_MS = 60000;
+/** Vision LLM calls (Groq/Gemini) can take longer than the default timeout, especially
+ * with a Groq->Gemini fallback chain (up to ~25s per provider); give meal-photo more room
+ * so a slow-but-successful analysis isn't aborted client-side before the backend responds. */
+const MEAL_PHOTO_TIMEOUT_MS = 45000;
 
 async function apiRequest(endpoint, options = {}) {
   const token = getStoredToken();
@@ -29,7 +33,11 @@ async function apiRequest(endpoint, options = {}) {
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const timeoutMs = options.timeoutMs ?? (endpoint.startsWith('/api/v1/local-ai') ? LOCAL_AI_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
+  const timeoutMs = options.timeoutMs ?? (
+    endpoint.startsWith('/api/v1/local-ai') ? LOCAL_AI_TIMEOUT_MS
+    : endpoint.startsWith('/api/v1/meal-photo/analyze') ? MEAL_PHOTO_TIMEOUT_MS
+    : REQUEST_TIMEOUT_MS
+  );
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -44,15 +52,21 @@ async function apiRequest(endpoint, options = {}) {
     clearTimeout(timeoutId);
 
     if (response.status === 503) {
-      // Don't treat symptom-checker or local-ai 503 as platform maintenance
+      // Don't treat symptom-checker, local-ai, or meal-photo 503 as platform maintenance —
+      // these can return 503 for a single feature (e.g. missing vision API key) without
+      // the rest of the platform being down.
       const isLocalAIUnavailable = endpoint.startsWith('/api/v1/local-ai');
       const isSymptomCheckerUnavailable = endpoint.includes('symptom-checker');
-      if (!isLocalAIUnavailable && !isSymptomCheckerUnavailable && _maintenanceCb) _maintenanceCb();
+      const isMealPhotoUnavailable = endpoint.startsWith('/api/v1/meal-photo');
+      const isFeatureScoped = isLocalAIUnavailable || isSymptomCheckerUnavailable || isMealPhotoUnavailable;
+      if (!isFeatureScoped && _maintenanceCb) _maintenanceCb();
       let message = 'HTTP 503: Platform is under maintenance';
-      if (isLocalAIUnavailable || isSymptomCheckerUnavailable) {
+      if (isFeatureScoped) {
         const fallback = isLocalAIUnavailable
           ? 'Service unavailable. Please try again shortly.'
-          : 'Symptom checker is temporarily unavailable. Please try again.';
+          : isSymptomCheckerUnavailable
+          ? 'Symptom checker is temporarily unavailable. Please try again.'
+          : 'Meal analysis is temporarily unavailable. Please try again.';
         try {
           const body = await response.json();
           message = (body && typeof body.detail === 'string') ? body.detail : fallback;

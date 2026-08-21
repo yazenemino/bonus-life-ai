@@ -105,16 +105,19 @@ export default function MealPhotoAnalyzer({ language }) {
   };
 
   const carbColor = (level) => {
-    if (level === 'low') return '#34D399';
-    if (level === 'high') return '#FBBF24';
-    return '#67E8F9';
+    const l = (level || '').toLowerCase();
+    if (l === 'low') return '#34D399';
+    if (l === 'medium') return '#67E8F9';
+    if (l === 'high') return '#FBBF24';
+    return '#6B7280'; // unknown/missing value — don't imply a real reading
   };
 
   const carbLabel = (level) => {
     const l = (level || '').toLowerCase();
     if (l === 'low') return isAr ? 'منخفض' : isTr ? 'Düşük' : 'Low';
+    if (l === 'medium') return isAr ? 'متوسط' : isTr ? 'Orta' : 'Medium';
     if (l === 'high') return isAr ? 'مرتفع' : isTr ? 'Yüksek' : 'High';
-    return isAr ? 'متوسط' : isTr ? 'Orta' : 'Medium';
+    return isAr ? 'غير معروف' : isTr ? 'Bilinmiyor' : 'Unknown';
   };
 
   const cardStyle = {

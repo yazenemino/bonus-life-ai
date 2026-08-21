@@ -19,40 +19,48 @@ logger = logging.getLogger(__name__)
 # Groq vision: use Llama 4 Scout (or Maverick). LLaVA was deprecated.
 VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
 
-_STRINGS = {
+
+class MealAnalysisError(Exception):
+    """Raised when meal photo analysis cannot produce a real result.
+
+    Carries an HTTP status code so the route can respond honestly (400/503/502)
+    instead of returning a fabricated 200 with placeholder data.
+    """
+
+    def __init__(self, status_code: int, detail: str):
+        super().__init__(detail)
+        self.status_code = status_code
+        self.detail = detail
+
+
+# User-facing error strings (no fake meal_name/carb_level here — these are errors, not results).
+_ERROR_STRINGS = {
     "no_image": {
-        "arabic": {"meal_name": "لا توجد صورة", "healthier_swaps": "يرجى رفع أو التقاط صورة لوجبتك."},
-        "turkish": {"meal_name": "Görsel yok", "healthier_swaps": "Lütfen bir öğün fotoğrafı yükleyin veya çekin."},
-        "english": {"meal_name": "No image", "healthier_swaps": "Please upload or take a photo of your meal."},
+        "arabic": "يرجى رفع أو التقاط صورة لوجبتك.",
+        "turkish": "Lütfen bir öğün fotoğrafı yükleyin veya çekin.",
+        "english": "Please upload or take a photo of your meal.",
     },
     "unavailable": {
-        "arabic": {
-            "meal_name": "التحليل غير متوفر حالياً",
-            "healthier_swaps": "أضف المزيد من الخضروات واختر الحبوب الكاملة. قلل من السكريات المضافة.",
-        },
-        "turkish": {
-            "meal_name": "Analiz şu anda kullanılamıyor",
-            "healthier_swaps": "Daha fazla sebze ekleyin ve tam tahılları tercih edin. Eklenmiş şekeri sınırlayın.",
-        },
-        "english": {
-            "meal_name": "Analysis unavailable",
-            "healthier_swaps": "Add vegetables and choose whole grains. Limit added sugars.",
-        },
+        "arabic": "خدمة تحليل الصور غير مُهيأة حالياً. يرجى المحاولة لاحقاً.",
+        "turkish": "Görsel analiz hizmeti şu anda yapılandırılmamış. Lütfen daha sonra tekrar deneyin.",
+        "english": "The vision analysis service is not configured. Please try again later.",
     },
     "api_error": {
-        "arabic": {"meal_name": "تعذر التحليل", "healthier_swaps": "حدث خطأ في خدمة التحليل. يرجى المحاولة مرة أخرى."},
-        "turkish": {"meal_name": "Analiz kullanılamıyor", "healthier_swaps": "Görsel analiz hatası. Lütfen tekrar deneyin."},
-        "english": {"meal_name": "Analysis unavailable", "healthier_swaps": "Vision API error. Please try again."},
-    },
-    "failed": {
-        "arabic": {"meal_name": "فشل التحليل", "healthier_swaps": "حدث خطأ ما. يرجى تجربة صورة أخرى."},
-        "turkish": {"meal_name": "Analiz başarısız", "healthier_swaps": "Bir şeyler ters gitti. Lütfen başka bir fotoğraf deneyin."},
-        "english": {"meal_name": "Analysis failed", "healthier_swaps": "Something went wrong. Please try another photo."},
+        "arabic": "تعذر تحليل الصورة. يرجى المحاولة مرة أخرى بصورة أوضح.",
+        "turkish": "Fotoğraf analiz edilemedi. Lütfen daha net bir fotoğrafla tekrar deneyin.",
+        "english": "Could not analyze the photo. Please try again with a clearer image.",
     },
     "default_swaps": {
         "arabic": "فكر في إضافة المزيد من الخضروات واختيار الحبوب الكاملة عند الإمكان.",
         "turkish": "Mümkün olduğunda daha fazla sebze eklemeyi ve tam tahıl seçmeyi düşünün.",
         "english": "Consider adding more vegetables and choosing whole grains when possible.",
+    },
+    # Used only when the model DID respond but left meal_name blank — a real (partial)
+    # result, not a pipeline failure, so it's kept separate from the error strings above.
+    "unidentified_meal": {
+        "arabic": "وجبة غير محددة",
+        "turkish": "Belirlenemeyen öğün",
+        "english": "Unidentified meal",
     },
 }
 
@@ -77,22 +85,17 @@ def _lang(language: str) -> str:
     return language if language in ("arabic", "turkish") else "english"
 
 
-def _fixed(kind: str, language: str) -> Dict[str, Any]:
-    strings = _STRINGS[kind][_lang(language)]
-    return {
-        "meal_name": strings["meal_name"],
-        "carb_level": "medium",
-        "healthier_swaps": strings["healthier_swaps"],
-    }
-
-
 def _normalize_carb_level(text: str) -> str:
-    """Map model output to low | medium | high."""
+    """Map real model output to low | medium | high. Only called on an actual
+    model response, so defaulting ambiguous/unrecognized text to 'medium' here
+    reflects a real (if imprecise) analysis — not a pipeline failure."""
     t = (text or "").strip().lower()
     if "low" in t or "düşük" in t or "منخفض" in t:
         return "low"
     if "high" in t or "yüksek" in t or "مرتفع" in t or "عالي" in t:
         return "high"
+    if t and "medium" not in t and "orta" not in t and "متوسط" not in t:
+        logger.warning("Meal photo: unrecognized carb_level text %r, defaulting to medium", text)
     return "medium"
 
 
@@ -161,9 +164,9 @@ def _parse_text_fallback(raw: str, language: str) -> Dict[str, Any]:
                 healthier_swaps = para.strip()[:500]
                 break
     if not healthier_swaps:
-        healthier_swaps = _STRINGS["default_swaps"][_lang(language)]
+        healthier_swaps = _ERROR_STRINGS["default_swaps"][_lang(language)]
     if not meal_name:
-        meal_name = raw.strip().split("\n")[0][:255] or _STRINGS["unavailable"][_lang(language)]["meal_name"]
+        meal_name = raw.strip().split("\n")[0][:255] or _ERROR_STRINGS["unidentified_meal"][_lang(language)]
 
     return {
         "meal_name": meal_name[:255],
@@ -180,6 +183,12 @@ def _parse_analysis_response(raw: str, language: str) -> Dict[str, Any]:
     """
     logger.info("Meal photo raw model response (%s): %s", language, raw)
 
+    if not (raw or "").strip():
+        # The model call succeeded but returned nothing usable — this is a real
+        # failure, not a partial result, so surface it as an error rather than
+        # synthesizing a "successful" response.
+        raise MealAnalysisError(502, _ERROR_STRINGS["api_error"][_lang(language)])
+
     data = _extract_json_object(raw)
     if data:
         meal_name = _stringify_field(data.get("meal_name"))
@@ -187,9 +196,9 @@ def _parse_analysis_response(raw: str, language: str) -> Dict[str, Any]:
         healthier_swaps = _stringify_field(data.get("healthier_swaps"))
         if meal_name or healthier_swaps:
             return {
-                "meal_name": (meal_name or _STRINGS["unavailable"][_lang(language)]["meal_name"])[:255],
+                "meal_name": (meal_name or _ERROR_STRINGS["unidentified_meal"][_lang(language)])[:255],
                 "carb_level": _normalize_carb_level(carb_level_raw),
-                "healthier_swaps": (healthier_swaps or _STRINGS["default_swaps"][_lang(language)])[:2000],
+                "healthier_swaps": (healthier_swaps or _ERROR_STRINGS["default_swaps"][_lang(language)])[:2000],
             }
         logger.warning("Meal photo JSON parsed but meal_name/healthier_swaps both empty; using text fallback")
 
@@ -267,7 +276,7 @@ async def analyze_meal_image(image_base64: str, language: str = "english") -> Di
     if "," in image_base64 and "base64," in image_base64:
         image_base64 = image_base64.split("base64,", 1)[-1].strip()
     if not image_base64:
-        return _fixed("no_image", language)
+        raise MealAnalysisError(400, _ERROR_STRINGS["no_image"][_lang(language)])
 
     prompt = _build_prompt(language)
     groq_key = os.getenv("GROQ_API_KEY")
@@ -275,21 +284,25 @@ async def analyze_meal_image(image_base64: str, language: str = "english") -> Di
     has_gemini = gemini_service.is_available()
 
     if not has_groq and not has_gemini:
-        logger.warning("No vision API configured (GROQ_API_KEY/GEMINI_API_KEY); returning localized placeholder")
-        return _fixed("unavailable", language)
+        logger.error("No vision API configured (GROQ_API_KEY/GEMINI_API_KEY)")
+        raise MealAnalysisError(503, _ERROR_STRINGS["unavailable"][_lang(language)])
 
     if has_groq:
         try:
             text = await _analyze_with_groq(image_base64, prompt, groq_key)
             return _parse_analysis_response(text, language)
+        except MealAnalysisError:
+            raise
         except Exception as e:
             logger.error("Groq vision analysis failed: %s", e)
             if not has_gemini:
-                return _fixed("api_error", language)
+                raise MealAnalysisError(502, _ERROR_STRINGS["api_error"][_lang(language)]) from e
 
     try:
         text = await asyncio.to_thread(gemini_service.generate_vision, image_base64, prompt, True)
         return _parse_analysis_response(text, language)
+    except MealAnalysisError:
+        raise
     except Exception as e:
         logger.exception("Meal photo analysis failed (Gemini): %s", e)
-        return _fixed("failed", language)
+        raise MealAnalysisError(502, _ERROR_STRINGS["api_error"][_lang(language)]) from e
